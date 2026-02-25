@@ -8,7 +8,9 @@ import {
   NotebookPen,
   Power,
   Settings2,
+  SlidersHorizontal,
   Sparkles,
+  TerminalSquare,
   Volume2,
 } from "lucide-react";
 
@@ -20,6 +22,7 @@ const iconMap: Record<AppId, React.ComponentType<{ size?: number }>> = {
   soundboard: Volume2,
   explorer: FolderOpen,
   notepad: NotebookPen,
+  terminal: TerminalSquare,
 };
 
 const timeFormatter = new Intl.DateTimeFormat("en-US", {
@@ -34,13 +37,17 @@ export default function Taskbar() {
   const focusedWindowId = useOSStore((state) => state.focusedWindowId);
   const startMenuOpen = useOSStore((state) => state.startMenuOpen);
   const sound = useOSStore((state) => state.sound);
+  const notificationHistoryCount = useOSStore(
+    (state) => state.notificationHistory.length
+  );
   const lockSystem = useOSStore((state) => state.lockSystem);
   const toggleStartMenu = useOSStore((state) => state.toggleStartMenu);
   const openApp = useOSStore((state) => state.openApp);
   const focusWindow = useOSStore((state) => state.focusWindow);
   const restoreWindow = useOSStore((state) => state.restoreWindow);
   const minimizeWindow = useOSStore((state) => state.minimizeWindow);
-  const pushNotification = useOSStore((state) => state.pushNotification);
+  const openSidePanel = useOSStore((state) => state.openSidePanel);
+  const toggleSidePanel = useOSStore((state) => state.toggleSidePanel);
   const playClickSoft = useOSStore((state) => state.playClickSoft);
 
   const runningWindows = useMemo(
@@ -95,25 +102,25 @@ export default function Taskbar() {
           </button>
 
           <div className="hidden items-center gap-1.5 md:flex">
-            {(["explorer", "soundboard", "settings", "notepad"] as AppId[]).map(
-              (appId) => {
-                const Icon = iconMap[appId];
-                return (
-                  <button
-                    key={appId}
-                    type="button"
-                    title={`Open ${APP_REGISTRY[appId].title}`}
-                    className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/8 text-violet-100 transition hover:border-white/25 hover:bg-white/16"
-                    onClick={() => {
-                      playClickSoft();
-                      openApp(appId);
-                    }}
-                  >
-                    <Icon size={16} />
-                  </button>
-                );
-              }
-            )}
+            {(
+              ["explorer", "soundboard", "settings", "terminal", "notepad"] as AppId[]
+            ).map((appId) => {
+              const Icon = iconMap[appId];
+              return (
+                <button
+                  key={appId}
+                  type="button"
+                  title={`Open ${APP_REGISTRY[appId].title}`}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/8 text-violet-100 transition hover:-translate-y-0.5 hover:border-violet-200/35 hover:bg-white/16 hover:shadow-[0_10px_24px_rgba(82,40,171,0.38)]"
+                  onClick={() => {
+                    playClickSoft();
+                    openApp(appId);
+                  }}
+                >
+                  <Icon size={16} />
+                </button>
+              );
+            })}
           </div>
 
           <div className="ml-1 flex min-w-0 items-center gap-1.5 overflow-x-auto pb-1">
@@ -127,7 +134,7 @@ export default function Taskbar() {
                   className={`inline-flex h-10 items-center gap-2 rounded-xl border px-3 text-xs font-medium transition ${
                     isFocused
                       ? "border-violet-300/45 bg-violet-400/30 text-white"
-                      : "border-white/10 bg-white/8 text-violet-100 hover:bg-white/16"
+                      : "border-white/10 bg-white/8 text-violet-100 hover:-translate-y-0.5 hover:bg-white/16 hover:shadow-[0_10px_24px_rgba(82,40,171,0.28)]"
                   }`}
                   onClick={() => handleWindowButton(windowData.id)}
                 >
@@ -142,18 +149,34 @@ export default function Taskbar() {
         <div className="flex items-center gap-2">
           <button
             type="button"
-            className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/8 text-violet-100 transition hover:bg-white/16"
-            title="Quick notification"
+            className="relative inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/8 text-violet-100 transition hover:-translate-y-0.5 hover:bg-white/16 hover:shadow-[0_10px_24px_rgba(82,40,171,0.3)]"
+            title="Notification Center"
             onClick={() => {
               playClickSoft();
-              pushNotification("PurpleOS", "Taskbar ping received.");
+              toggleSidePanel("notifications");
             }}
           >
             <BellRing size={15} />
+            {notificationHistoryCount > 0 ? (
+              <span className="absolute -right-1 -top-1 rounded-full bg-violet-400 px-1.5 text-[10px] font-bold text-violet-950">
+                {Math.min(notificationHistoryCount, 99)}
+              </span>
+            ) : null}
           </button>
           <button
             type="button"
-            className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/8 text-violet-100 transition hover:bg-white/16"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/8 text-violet-100 transition hover:-translate-y-0.5 hover:bg-white/16 hover:shadow-[0_10px_24px_rgba(82,40,171,0.3)]"
+            title="Quick Settings"
+            onClick={() => {
+              playClickSoft();
+              toggleSidePanel("quickSettings");
+            }}
+          >
+            <SlidersHorizontal size={15} />
+          </button>
+          <button
+            type="button"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/8 text-violet-100 transition hover:-translate-y-0.5 hover:bg-white/16 hover:shadow-[0_10px_24px_rgba(82,40,171,0.3)]"
             title="Lock system"
             onClick={() => {
               playClickSoft();
@@ -162,12 +185,19 @@ export default function Taskbar() {
           >
             <Power size={15} />
           </button>
-          <div className="rounded-xl border border-white/10 bg-white/8 px-3 py-1.5 text-right text-xs text-violet-100">
+          <button
+            type="button"
+            className="rounded-xl border border-white/10 bg-white/8 px-3 py-1.5 text-right text-xs text-violet-100 transition hover:bg-white/16"
+            onClick={() => {
+              playClickSoft();
+              openSidePanel("quickSettings");
+            }}
+          >
             <div className="font-semibold text-violet-50">{timeFormatter.format(clock)}</div>
             <div className="mt-0.5 text-[11px] text-violet-200/75">
               Vol {Math.round(sound.volume * 100)}% {sound.muted ? "Muted" : ""}
             </div>
-          </div>
+          </button>
         </div>
       </div>
     </footer>

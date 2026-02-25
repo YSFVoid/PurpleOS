@@ -39,6 +39,7 @@ export type OSNotification = {
   message: string;
   createdAt: number;
   level: "info" | "error";
+  appId?: AppId;
 };
 
 export type OSSettings = {
@@ -47,6 +48,8 @@ export type OSSettings = {
   reduceMotion: boolean;
   showNoAiLine: boolean;
 };
+
+export type SidePanelTab = "notifications" | "quickSettings";
 
 export type OSSoundState = {
   packId: SoundPackId;
@@ -68,12 +71,21 @@ type SoundImportPayload = {
   customFilesMeta?: Record<string, CustomSoundMeta>;
 };
 
+type PushNotificationOptions = {
+  appId?: AppId;
+  level?: "info" | "error";
+  playSound?: boolean;
+};
+
 type OSStore = {
   windows: OSWindow[];
   focusedWindowId: string | null;
   startMenuOpen: boolean;
+  sidePanelOpen: boolean;
+  sidePanelTab: SidePanelTab;
   locked: boolean;
   notifications: OSNotification[];
+  notificationHistory: OSNotification[];
   files: ExplorerItem[];
   notes: string;
   settings: OSSettings;
@@ -88,15 +100,21 @@ type OSStore = {
   restoreWindow: (windowId: string) => void;
   setStartMenuOpen: (open: boolean) => void;
   toggleStartMenu: () => void;
+  openSidePanel: (tab: SidePanelTab) => void;
+  closeSidePanel: () => void;
+  toggleSidePanel: (tab: SidePanelTab) => void;
+  setSidePanelTab: (tab: SidePanelTab) => void;
   lockSystem: () => void;
   unlockSystem: () => void;
 
   pushNotification: (
     title: string,
     message: string,
-    options?: { level?: "info" | "error"; playSound?: boolean }
+    options?: PushNotificationOptions
   ) => void;
   dismissNotification: (id: string) => void;
+  dismissNotificationHistory: (id: string) => void;
+  clearNotificationHistory: () => void;
   raiseError: (message: string) => void;
   deleteFile: (itemId: string) => void;
   resetFileSystem: () => void;
@@ -123,6 +141,7 @@ type OSStore = {
     options?: { volumeMultiplier?: number }
   ) => void;
   playClickSoft: () => void;
+  preloadSounds: () => void;
 };
 
 const DEFAULT_SETTINGS: OSSettings = {
@@ -140,6 +159,10 @@ const DEFAULT_SOUND: OSSoundState = {
   customFilesMeta: {},
   clickSoftEnabled: true,
 };
+
+const MAX_TOASTS = 6;
+const MAX_HISTORY = 120;
+const CLICK_SOFT_DEBOUNCE_MS = 80;
 
 const makeId = (prefix: string) =>
   `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -219,6 +242,8 @@ soundManager.applyState({
   mappings: DEFAULT_SOUND.mappings,
 });
 
+let lastClickSoftAt = 0;
+
 const makeWindow = (appId: AppId, windows: OSWindow[]): OSWindow => {
   const app = APP_REGISTRY[appId];
   const topZ = getTopZ(windows);
@@ -244,8 +269,11 @@ export const useOSStore = create<OSStore>()(
       windows: [],
       focusedWindowId: null,
       startMenuOpen: false,
+      sidePanelOpen: false,
+      sidePanelTab: "notifications",
       locked: false,
       notifications: [],
+      notificationHistory: [],
       files: createInitialFilesystem(),
       notes: "",
       settings: DEFAULT_SETTINGS,
@@ -263,6 +291,7 @@ export const useOSStore = create<OSStore>()(
             windows: [...state.windows, nextWindow],
             focusedWindowId: nextWindow.id,
             startMenuOpen: false,
+            sidePanelOpen: false,
           };
         });
       },
@@ -370,11 +399,35 @@ export const useOSStore = create<OSStore>()(
       toggleStartMenu: () =>
         set((state) => ({ startMenuOpen: !state.startMenuOpen })),
 
+      openSidePanel: (tab) =>
+        set({
+          sidePanelOpen: true,
+          sidePanelTab: tab,
+          startMenuOpen: false,
+        }),
+      closeSidePanel: () => set({ sidePanelOpen: false }),
+      toggleSidePanel: (tab) =>
+        set((state) => {
+          if (state.sidePanelOpen && state.sidePanelTab === tab) {
+            return { sidePanelOpen: false };
+          }
+          return {
+            sidePanelOpen: true,
+            sidePanelTab: tab,
+            startMenuOpen: false,
+          };
+        }),
+      setSidePanelTab: (tab) =>
+        set(() => ({
+          sidePanelOpen: true,
+          sidePanelTab: tab,
+        })),
+
       lockSystem: () => {
         if (get().locked) {
           return;
         }
-        set({ locked: true, startMenuOpen: false });
+        set({ locked: true, startMenuOpen: false, sidePanelOpen: false });
         soundManager.play("lock");
       },
 
@@ -393,10 +446,15 @@ export const useOSStore = create<OSStore>()(
           message,
           createdAt: Date.now(),
           level: options?.level ?? "info",
+          appId: options?.appId,
         };
 
         set((state) => ({
-          notifications: [notification, ...state.notifications].slice(0, 6),
+          notifications: [notification, ...state.notifications].slice(0, MAX_TOASTS),
+          notificationHistory: [notification, ...state.notificationHistory].slice(
+            0,
+            MAX_HISTORY
+          ),
         }));
 
         if (options?.playSound !== false) {
@@ -409,6 +467,20 @@ export const useOSStore = create<OSStore>()(
           notifications: state.notifications.filter((item) => item.id !== id),
         })),
 
+      dismissNotificationHistory: (id) =>
+        set((state) => ({
+          notificationHistory: state.notificationHistory.filter(
+            (item) => item.id !== id
+          ),
+          notifications: state.notifications.filter((item) => item.id !== id),
+        })),
+
+      clearNotificationHistory: () =>
+        set({
+          notificationHistory: [],
+          notifications: [],
+        }),
+
       raiseError: (message) => {
         const notification: OSNotification = {
           id: makeId("ntf"),
@@ -419,7 +491,11 @@ export const useOSStore = create<OSStore>()(
         };
 
         set((state) => ({
-          notifications: [notification, ...state.notifications].slice(0, 6),
+          notifications: [notification, ...state.notifications].slice(0, MAX_TOASTS),
+          notificationHistory: [notification, ...state.notificationHistory].slice(
+            0,
+            MAX_HISTORY
+          ),
         }));
         soundManager.play("error");
       },
@@ -444,7 +520,14 @@ export const useOSStore = create<OSStore>()(
             return {
               notifications: [errorNotification, ...state.notifications].slice(
                 0,
-                6
+                MAX_TOASTS
+              ),
+              notificationHistory: [
+                errorNotification,
+                ...state.notificationHistory,
+              ].slice(
+                0,
+                MAX_HISTORY
               ),
             };
           }
@@ -587,15 +670,26 @@ export const useOSStore = create<OSStore>()(
         if (!sound.clickSoftEnabled) {
           return;
         }
+
+        const now = Date.now();
+        if (now - lastClickSoftAt < CLICK_SOFT_DEBOUNCE_MS) {
+          return;
+        }
+        lastClickSoftAt = now;
         soundManager.play("clickSoft", { volumeMultiplier: 0.8 });
+      },
+
+      preloadSounds: () => {
+        soundManager.preloadCurrentPack();
       },
     }),
     {
-      name: "purpleos-store-v1",
+      name: "purpleos-store-v2",
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
         files: state.files,
         notes: state.notes,
+        notificationHistory: state.notificationHistory,
         settings: state.settings,
         sound: state.sound,
       }),

@@ -1,10 +1,15 @@
-export type AppId = "settings" | "soundboard" | "explorer" | "notepad";
+export type AppId =
+  | "settings"
+  | "soundboard"
+  | "explorer"
+  | "notepad"
+  | "terminal";
 
 export type AppDefinition = {
   id: AppId;
   title: string;
   description: string;
-  icon: "settings" | "soundboard" | "explorer" | "notepad";
+  icon: "settings" | "soundboard" | "explorer" | "notepad" | "terminal";
   defaultSize: {
     w: number;
     h: number;
@@ -48,6 +53,14 @@ export const APP_REGISTRY: Record<AppId, AppDefinition> = {
     defaultSize: { w: 700, h: 520 },
     minSize: { w: 500, h: 360 },
   },
+  terminal: {
+    id: "terminal",
+    title: "Terminal",
+    description: "Run simple shell-like commands inside PurpleOS.",
+    icon: "terminal",
+    defaultSize: { w: 760, h: 500 },
+    minSize: { w: 560, h: 360 },
+  },
 };
 
 export const START_MENU_APPS: AppId[] = [
@@ -55,6 +68,7 @@ export const START_MENU_APPS: AppId[] = [
   "soundboard",
   "explorer",
   "notepad",
+  "terminal",
 ];
 
 export const DESKTOP_SHORTCUTS: AppId[] = ["explorer", "soundboard", "settings"];

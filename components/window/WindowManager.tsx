@@ -6,6 +6,7 @@ import ExplorerApp from "@/apps/ExplorerApp";
 import NotepadApp from "@/apps/NotepadApp";
 import SettingsApp from "@/apps/SettingsApp";
 import SoundboardApp from "@/apps/SoundboardApp";
+import TerminalApp from "@/apps/TerminalApp";
 import type { AppId } from "@/lib/apps";
 import { useOSStore } from "@/store/useOSStore";
 
@@ -20,6 +21,7 @@ const appComponentMap: Record<AppId, React.ComponentType<WindowAppProps>> = {
   soundboard: SoundboardApp,
   explorer: ExplorerApp,
   notepad: NotepadApp,
+  terminal: TerminalApp,
 };
 
 export default function WindowManager() {

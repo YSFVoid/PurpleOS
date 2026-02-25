@@ -3,12 +3,20 @@
 import { useEffect } from "react";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { FolderOpen, NotebookPen, Settings2, Unlock, Volume2 } from "lucide-react";
+import {
+  FolderOpen,
+  NotebookPen,
+  Settings2,
+  TerminalSquare,
+  Unlock,
+  Volume2,
+} from "lucide-react";
 
 import { APP_REGISTRY, DESKTOP_SHORTCUTS, type AppId } from "@/lib/apps";
 import { useOSStore } from "@/store/useOSStore";
 
 import StartMenu from "./StartMenu";
+import SystemPanel from "./SystemPanel";
 import Taskbar from "./Taskbar";
 import WindowManager from "../window/WindowManager";
 
@@ -17,6 +25,7 @@ const iconMap: Record<AppId, React.ComponentType<{ size?: number }>> = {
   soundboard: Volume2,
   explorer: FolderOpen,
   notepad: NotebookPen,
+  terminal: TerminalSquare,
 };
 
 let bootSequencePlayed = false;
@@ -30,12 +39,18 @@ export default function Desktop() {
   const reduceMotion = useOSStore((state) => state.settings.reduceMotion);
   const playEvent = useOSStore((state) => state.playEvent);
   const playClickSoft = useOSStore((state) => state.playClickSoft);
+  const preloadSounds = useOSStore((state) => state.preloadSounds);
+  const sidePanelOpen = useOSStore((state) => state.sidePanelOpen);
+  const closeSidePanel = useOSStore((state) => state.closeSidePanel);
+  const setStartMenuOpen = useOSStore((state) => state.setStartMenuOpen);
+  const startMenuOpen = useOSStore((state) => state.startMenuOpen);
 
   useEffect(() => {
     if (bootSequencePlayed) {
       return;
     }
 
+    preloadSounds();
     bootSequencePlayed = true;
     playEvent("boot", { volumeMultiplier: 0.65 });
     const loginTimer = window.setTimeout(
@@ -43,7 +58,7 @@ export default function Desktop() {
       520
     );
     return () => window.clearTimeout(loginTimer);
-  }, [playEvent]);
+  }, [playEvent, preloadSounds]);
 
   useEffect(() => {
     if (!notifications.length) {
@@ -55,12 +70,51 @@ export default function Desktop() {
     return () => timers.forEach((timer) => window.clearTimeout(timer));
   }, [dismissNotification, notifications]);
 
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") {
+        return;
+      }
+
+      if (startMenuOpen) {
+        setStartMenuOpen(false);
+      }
+
+      if (sidePanelOpen) {
+        closeSidePanel();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [closeSidePanel, setStartMenuOpen, sidePanelOpen, startMenuOpen]);
+
   return (
     <main className="relative h-screen w-screen overflow-hidden bg-[#07030f] text-violet-50">
       <div className="absolute inset-0 bg-[radial-gradient(85%_75%_at_16%_12%,rgba(154,67,255,0.34),transparent),radial-gradient(70%_70%_at_84%_4%,rgba(119,72,255,0.26),transparent),linear-gradient(180deg,#090414_0%,#130626_46%,#090314_100%)]" />
+      <div className="noise-overlay pointer-events-none absolute inset-0 opacity-40" />
       <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:48px_48px]" />
-      <div className="pointer-events-none absolute -left-36 top-10 h-96 w-96 rounded-full bg-fuchsia-500/25 blur-[128px]" />
-      <div className="pointer-events-none absolute right-0 top-20 h-[26rem] w-[26rem] rounded-full bg-indigo-500/22 blur-[130px]" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_30%,transparent,rgba(2,1,6,0.68)_72%)]" />
+
+      {reduceMotion ? (
+        <>
+          <div className="pointer-events-none absolute -left-36 top-10 h-96 w-96 rounded-full bg-fuchsia-500/25 blur-[128px]" />
+          <div className="pointer-events-none absolute right-0 top-20 h-[26rem] w-[26rem] rounded-full bg-indigo-500/22 blur-[130px]" />
+        </>
+      ) : (
+        <>
+          <motion.div
+            className="pointer-events-none absolute -left-36 top-10 h-96 w-96 rounded-full bg-fuchsia-500/25 blur-[128px]"
+            animate={{ x: [0, 28, 0], y: [0, -18, 0] }}
+            transition={{ duration: 16, repeat: Infinity, ease: "easeInOut" }}
+          />
+          <motion.div
+            className="pointer-events-none absolute right-0 top-20 h-[26rem] w-[26rem] rounded-full bg-indigo-500/22 blur-[130px]"
+            animate={{ x: [0, -24, 0], y: [0, 14, 0] }}
+            transition={{ duration: 20, repeat: Infinity, ease: "easeInOut" }}
+          />
+        </>
+      )}
 
       <section className="absolute inset-0 z-20 p-4 sm:p-6">
         <div className="grid w-[170px] gap-3">
@@ -97,6 +151,7 @@ export default function Desktop() {
 
       <WindowManager />
       <StartMenu />
+      <SystemPanel />
       <Taskbar />
 
       <div className="pointer-events-none absolute right-4 top-4 z-[75] flex w-[min(380px,calc(100vw-2rem))] flex-col gap-2">

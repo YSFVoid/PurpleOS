@@ -2,6 +2,7 @@
 
 import {
   DEFAULT_SOUND_PACK,
+  SOUND_EVENTS,
   getDefaultSoundSource,
   getSoundPack,
   type SoundEventName,
@@ -26,13 +27,31 @@ type PlayOptions = {
   volumeMultiplier?: number;
 };
 
+const MAX_POLYPHONY = 4;
+
+const EVENT_VOLUME_MULTIPLIERS: Partial<Record<SoundEventName, number>> = {
+  boot: 0.92,
+  login: 0.84,
+  lock: 0.75,
+  unlock: 0.78,
+  openWindow: 0.78,
+  closeWindow: 0.74,
+  minimize: 0.72,
+  maximize: 0.74,
+  error: 1,
+  notify: 0.86,
+  recycle: 0.76,
+  clickSoft: 0.45,
+};
+
 export class SoundManager {
   private packId: SoundPackId = DEFAULT_SOUND_PACK;
   private volume = 0.72;
   private muted = false;
   private mappings: Partial<Record<SoundEventName, string>> = {};
   private context: AudioContext | null = null;
-  private activeAudio = new Set<HTMLAudioElement>();
+  private activeAudioQueue: HTMLAudioElement[] = [];
+  private preloadedSources = new Set<string>();
 
   play(eventName: SoundEventName, options: PlayOptions = {}): void {
     if (typeof window === "undefined") {
@@ -44,28 +63,41 @@ export class SoundManager {
       return;
     }
 
-    const audio = new Audio(source);
-    this.activeAudio.add(audio);
-    audio.preload = "auto";
+    const audio = this.createAudio(source);
+    if (!audio) {
+      if (eventName === "error") {
+        this.playFallbackTone(eventName, options.volumeMultiplier ?? 1);
+      }
+      return;
+    }
+
+    const eventMultiplier = EVENT_VOLUME_MULTIPLIERS[eventName] ?? 1;
     audio.volume = this.muted
       ? 0
-      : this.clamp(this.volume * (options.volumeMultiplier ?? 1), 0, 1);
+      : this.clamp(
+          this.volume * eventMultiplier * (options.volumeMultiplier ?? 1),
+          0,
+          1
+        );
 
-    const release = () => {
-      audio.onended = null;
-      audio.onerror = null;
-      this.activeAudio.delete(audio);
-    };
+    this.enforcePolyphony();
+    this.activeAudioQueue.push(audio);
+
+    const release = () => this.releaseAudio(audio);
 
     audio.onended = release;
     audio.onerror = () => {
       release();
-      this.playFallbackTone(eventName, options.volumeMultiplier ?? 1);
+      if (eventName === "error") {
+        this.playFallbackTone(eventName, options.volumeMultiplier ?? 1);
+      }
     };
 
     void audio.play().catch(() => {
       release();
-      this.playFallbackTone(eventName, options.volumeMultiplier ?? 1);
+      if (eventName === "error") {
+        this.playFallbackTone(eventName, options.volumeMultiplier ?? 1);
+      }
     });
   }
 
@@ -86,12 +118,14 @@ export class SoundManager {
 
   setPack(packId: SoundPackId): SoundPackId {
     this.packId = getSoundPack(packId).id;
+    this.preloadCurrentPack();
     return this.packId;
   }
 
   setMapping(eventName: SoundEventName, source: string | null): void {
     if (source && source.trim()) {
       this.mappings[eventName] = source;
+      this.preloadSource(source);
       return;
     }
 
@@ -100,6 +134,26 @@ export class SoundManager {
 
   setMappings(next: Partial<Record<SoundEventName, string>>): void {
     this.mappings = { ...next };
+    Object.values(this.mappings).forEach((source) => {
+      if (source) {
+        this.preloadSource(source);
+      }
+    });
+  }
+
+  preloadCurrentPack(): void {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    for (const eventName of SOUND_EVENTS) {
+      const customSource = this.mappings[eventName];
+      if (customSource) {
+        this.preloadSource(customSource);
+      } else {
+        this.preloadSource(getDefaultSoundSource(this.packId, eventName));
+      }
+    }
   }
 
   async setCustomSound(
@@ -130,6 +184,7 @@ export class SoundManager {
     this.setVolume(next.volume);
     this.setMuted(next.muted);
     this.setMappings(next.mappings);
+    this.preloadCurrentPack();
   }
 
   getState(): SoundManagerState {
@@ -150,6 +205,57 @@ export class SoundManager {
     return getDefaultSoundSource(this.packId, eventName);
   }
 
+  private preloadSource(source: string) {
+    if (typeof window === "undefined" || this.preloadedSources.has(source)) {
+      return;
+    }
+
+    const audio = this.createAudio(source);
+    if (!audio) {
+      return;
+    }
+    audio.preload = "auto";
+    try {
+      audio.load();
+      this.preloadedSources.add(source);
+    } catch {
+      // Ignore preload failures silently.
+    }
+  }
+
+  private createAudio(source: string): HTMLAudioElement | null {
+    try {
+      return new Audio(source);
+    } catch {
+      return null;
+    }
+  }
+
+  private enforcePolyphony() {
+    while (this.activeAudioQueue.length >= MAX_POLYPHONY) {
+      const oldest = this.activeAudioQueue.shift();
+      if (!oldest) {
+        break;
+      }
+      try {
+        oldest.pause();
+        oldest.currentTime = 0;
+      } catch {
+        // Ignore and continue.
+      }
+      this.releaseAudio(oldest);
+    }
+  }
+
+  private releaseAudio(audio: HTMLAudioElement) {
+    audio.onended = null;
+    audio.onerror = null;
+    const index = this.activeAudioQueue.indexOf(audio);
+    if (index >= 0) {
+      this.activeAudioQueue.splice(index, 1);
+    }
+  }
+
   private async fileToDataUrl(file: File): Promise<string> {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -160,7 +266,7 @@ export class SoundManager {
   }
 
   private playFallbackTone(eventName: SoundEventName, volumeMultiplier: number) {
-    if (this.muted || typeof window === "undefined") {
+    if (eventName !== "error" || this.muted || typeof window === "undefined") {
       return;
     }
 
@@ -181,8 +287,7 @@ export class SoundManager {
       const osc = this.context.createOscillator();
       const gain = this.context.createGain();
 
-      const baseFrequency =
-        eventName === "error" ? 180 : eventName === "notify" ? 620 : 420;
+      const baseFrequency = 180;
       const targetVolume = this.clamp(this.volume * volumeMultiplier * 0.2, 0, 1);
       const startAt = this.context.currentTime;
       const endAt = startAt + 0.14;

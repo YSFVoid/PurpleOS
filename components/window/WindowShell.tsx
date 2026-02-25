@@ -7,6 +7,7 @@ import {
   Minus,
   NotebookPen,
   Settings2,
+  TerminalSquare,
   Volume2,
   X,
 } from "lucide-react";
@@ -26,6 +27,7 @@ const iconMap: Record<AppId, React.ComponentType<{ size?: number }>> = {
   soundboard: Volume2,
   explorer: FolderOpen,
   notepad: NotebookPen,
+  terminal: TerminalSquare,
 };
 
 export default function WindowShell({ windowData, children }: WindowShellProps) {

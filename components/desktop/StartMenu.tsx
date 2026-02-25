@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useMemo, useRef, useState } from "react";
+
 import { AnimatePresence, motion } from "framer-motion";
 import {
   BellRing,
@@ -7,6 +9,7 @@ import {
   Lock,
   NotebookPen,
   Settings2,
+  TerminalSquare,
   Unlock,
   Volume2,
 } from "lucide-react";
@@ -19,9 +22,13 @@ const iconMap: Record<AppId, React.ComponentType<{ size?: number }>> = {
   soundboard: Volume2,
   explorer: FolderOpen,
   notepad: NotebookPen,
+  terminal: TerminalSquare,
 };
 
 export default function StartMenu() {
+  const [query, setQuery] = useState("");
+  const searchRef = useRef<HTMLInputElement>(null);
+
   const startMenuOpen = useOSStore((state) => state.startMenuOpen);
   const reduceMotion = useOSStore((state) => state.settings.reduceMotion);
   const locked = useOSStore((state) => state.locked);
@@ -31,6 +38,57 @@ export default function StartMenu() {
   const unlockSystem = useOSStore((state) => state.unlockSystem);
   const pushNotification = useOSStore((state) => state.pushNotification);
   const playClickSoft = useOSStore((state) => state.playClickSoft);
+
+  const filteredApps = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    if (!needle) {
+      return START_MENU_APPS;
+    }
+
+    return START_MENU_APPS.filter((appId) => {
+      const app = APP_REGISTRY[appId];
+      return (
+        app.title.toLowerCase().includes(needle) ||
+        app.description.toLowerCase().includes(needle)
+      );
+    });
+  }, [query]);
+
+  const launchApp = (appId: AppId) => {
+    playClickSoft();
+    openApp(appId);
+  };
+
+  useEffect(() => {
+    if (!startMenuOpen) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => searchRef.current?.focus(), 30);
+    return () => window.clearTimeout(timer);
+  }, [startMenuOpen]);
+
+  useEffect(() => {
+    if (!startMenuOpen) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setStartMenuOpen(false);
+      }
+
+      if (event.key === "Enter" && filteredApps.length) {
+        event.preventDefault();
+        playClickSoft();
+        openApp(filteredApps[0]);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [filteredApps, openApp, playClickSoft, startMenuOpen, setStartMenuOpen]);
 
   return (
     <AnimatePresence>
@@ -63,37 +121,50 @@ export default function StartMenu() {
               </p>
             </div>
 
-            <div className="mt-3 grid grid-cols-1 gap-2">
-              {START_MENU_APPS.map((appId) => {
-                const app = APP_REGISTRY[appId];
-                const Icon = iconMap[appId];
+            <div className="mt-3">
+              <input
+                ref={searchRef}
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search apps..."
+                className="w-full rounded-xl border border-white/12 bg-black/30 px-3 py-2 text-sm text-violet-50 outline-none ring-violet-300/40 transition focus:ring-2"
+              />
+            </div>
 
-                return (
-                  <button
-                    key={appId}
-                    type="button"
-                    className="group flex items-center justify-between rounded-xl border border-white/10 bg-white/6 px-3 py-2.5 text-left transition hover:border-violet-200/35 hover:bg-white/14"
-                    onClick={() => {
-                      playClickSoft();
-                      openApp(appId);
-                    }}
-                  >
-                    <span className="flex items-center gap-2">
-                      <span className="rounded-lg border border-white/10 bg-white/10 p-1.5 text-violet-100">
-                        <Icon size={14} />
-                      </span>
-                      <span>
-                        <span className="block text-sm font-semibold text-violet-50">
-                          {app.title}
+            <div className="mt-3 grid grid-cols-1 gap-2">
+              {filteredApps.length ? (
+                filteredApps.map((appId) => {
+                  const app = APP_REGISTRY[appId];
+                  const Icon = iconMap[appId];
+
+                  return (
+                    <button
+                      key={appId}
+                      type="button"
+                      className="group flex items-center justify-between rounded-xl border border-white/10 bg-white/6 px-3 py-2.5 text-left transition hover:border-violet-200/35 hover:bg-white/14"
+                      onClick={() => launchApp(appId)}
+                    >
+                      <span className="flex items-center gap-2">
+                        <span className="rounded-lg border border-white/10 bg-white/10 p-1.5 text-violet-100">
+                          <Icon size={14} />
                         </span>
-                        <span className="block text-xs text-violet-100/65">
-                          {app.description}
+                        <span>
+                          <span className="block text-sm font-semibold text-violet-50">
+                            {app.title}
+                          </span>
+                          <span className="block text-xs text-violet-100/65">
+                            {app.description}
+                          </span>
                         </span>
                       </span>
-                    </span>
-                  </button>
-                );
-              })}
+                    </button>
+                  );
+                })
+              ) : (
+                <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-4 text-sm text-violet-200/75">
+                  No app matched &quot;{query}&quot;.
+                </div>
+              )}
             </div>
 
             <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">

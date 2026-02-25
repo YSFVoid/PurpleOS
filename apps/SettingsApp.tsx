@@ -4,6 +4,11 @@ import { useMemo, useState } from "react";
 
 import { Download, Import, RotateCcw, Volume2, VolumeX } from "lucide-react";
 
+import {
+  CREDITS_OPTIONAL_LINE,
+  CREDITS_PRIMARY_LINE,
+  CREDITS_SECONDARY_LINE,
+} from "@/lib/credits";
 import { soundManager } from "@/lib/sounds/SoundManager";
 import {
   SOUND_EVENTS,
@@ -321,9 +326,8 @@ export default function SettingsApp() {
       ) : (
         <section className="glass-panel h-full rounded-2xl p-5">
           <h2 className="text-base font-semibold text-white">PurpleOS Credits</h2>
-          <p className="mt-4 text-lg text-violet-50">
-            Developed by Ysf (Lone wolf developer).
-          </p>
+          <p className="mt-4 text-lg text-violet-50">{CREDITS_PRIMARY_LINE}</p>
+          <p className="mt-2 text-base text-violet-100">{CREDITS_SECONDARY_LINE}</p>
 
           <div className="mt-4 rounded-2xl border border-white/10 bg-black/25 p-4">
             <label className="flex items-center gap-2 text-sm text-violet-100/90">
@@ -338,9 +342,7 @@ export default function SettingsApp() {
               Show optional handcrafted line
             </label>
             {settings.showNoAiLine ? (
-              <p className="mt-3 text-sm text-violet-200/80">
-                Handcrafted build. No AI used.
-              </p>
+              <p className="mt-3 text-sm text-violet-200/80">{CREDITS_OPTIONAL_LINE}</p>
             ) : null}
           </div>
         </section>

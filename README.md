@@ -2,16 +2,27 @@
 
 PurpleOS is a from-scratch web desktop OS experience built with a premium dark-purple visual direction, glass/mica surfaces, and smooth motion-focused interactions.
 
-The system includes a real window manager (draggable, resizable, focus/minimize/maximize/close), desktop shell (taskbar + start menu), and app suite (Settings, Soundboard, Explorer, Notepad).
+The system includes a real window manager (draggable, resizable, focus/minimize/maximize/close), desktop shell (taskbar + start menu), right-side system panels, and app suite (Settings, Soundboard, Explorer, Notepad, Terminal).
+
+## Run
+
+```bash
+npm install
+npm run dev
+```
 
 ## Core Highlights
 
 - Modern desktop UI with deep purple gradients and acrylic-style panels
 - Window system powered by `react-rnd` and global Zustand state
-- Sound event engine inspired by classic OS workflows
+- Sound event engine inspired by classic OS workflows (without using Microsoft audio assets)
 - Automatic sound triggers on real UI actions
 - Custom per-event sound uploads with local persistence
 - Sound pack import/export support via JSON
+- Notification Center with history, clear-all, and per-item dismiss
+- Quick Settings panel (volume, mute, click sounds, reduce motion, battery indicator)
+- Start Menu search with keyboard launch flow (`Esc` + `Enter`)
+- Terminal app with `about` command showing project credits
 
 ## Sound System
 
@@ -42,3 +53,18 @@ All included audio assets are original placeholder tones generated for this proj
 ## Credits
 
 Developed by Ysf (Lone wolf developer).
+Without vibe coding.
+
+## Screenshots
+
+### Desktop Overview
+
+_Add screenshot: `docs/screenshots/desktop-overview.png`_
+
+### Notification Center + Quick Settings
+
+_Add screenshot: `docs/screenshots/system-panels.png`_
+
+### Soundboard + Settings
+
+_Add screenshot: `docs/screenshots/sound-system.png`_
