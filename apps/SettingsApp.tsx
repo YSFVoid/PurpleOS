@@ -1,8 +1,16 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
-import { Download, Import, RotateCcw, Volume2, VolumeX } from "lucide-react";
+import {
+  Download,
+  Import,
+  ListMusic,
+  RotateCcw,
+  Square,
+  Volume2,
+  VolumeX,
+} from "lucide-react";
 
 import {
   CREDITS_OPTIONAL_LINE,
@@ -29,6 +37,8 @@ type TabKey = "sounds" | "about";
 export default function SettingsApp() {
   const [activeTab, setActiveTab] = useState<TabKey>("sounds");
   const [importMessage, setImportMessage] = useState<string | null>(null);
+  const [isTestingAll, setIsTestingAll] = useState(false);
+  const testTimeoutsRef = useRef<number[]>([]);
 
   const sound = useOSStore((state) => state.sound);
   const settings = useOSStore((state) => state.settings);
@@ -39,12 +49,55 @@ export default function SettingsApp() {
   const resetSounds = useOSStore((state) => state.resetSounds);
   const importSoundConfig = useOSStore((state) => state.importSoundConfig);
   const playEvent = useOSStore((state) => state.playEvent);
+  const pushNotification = useOSStore((state) => state.pushNotification);
+  const raiseError = useOSStore((state) => state.raiseError);
   const setClickSoftEnabled = useOSStore((state) => state.setClickSoftEnabled);
   const setReduceMotion = useOSStore((state) => state.setReduceMotion);
   const setShowNoAiLine = useOSStore((state) => state.setShowNoAiLine);
   const playClickSoft = useOSStore((state) => state.playClickSoft);
 
   const activePack = useMemo(() => getSoundPack(sound.packId), [sound.packId]);
+
+  const stopTestAll = () => {
+    testTimeoutsRef.current.forEach((timeoutId) => window.clearTimeout(timeoutId));
+    testTimeoutsRef.current = [];
+    setIsTestingAll(false);
+  };
+
+  const runTestAll = () => {
+    playClickSoft();
+    if (isTestingAll) {
+      stopTestAll();
+      return;
+    }
+
+    if (sound.muted) {
+      setImportMessage("Skipped test-all sequence because audio is muted.");
+      return;
+    }
+
+    setIsTestingAll(true);
+    setImportMessage("Running full sound event test...");
+
+    SOUND_EVENTS.forEach((eventName, index) => {
+      const timeoutId = window.setTimeout(() => {
+        playEvent(eventName, {
+          volumeMultiplier: eventName === "clickSoft" ? 0.45 : 0.62,
+        });
+        if (index === SOUND_EVENTS.length - 1) {
+          setIsTestingAll(false);
+          setImportMessage("Completed sound event test.");
+        }
+      }, index * 300);
+      testTimeoutsRef.current.push(timeoutId);
+    });
+  };
+
+  useEffect(() => {
+    return () => {
+      stopTestAll();
+    };
+  }, []);
 
   const handleCustomUpload = async (
     eventName: SoundEventName,
@@ -57,6 +110,7 @@ export default function SettingsApp() {
     const result = await soundManager.setCustomSound(eventName, file);
     if (!result) {
       setImportMessage(`Failed to load ${file.name}.`);
+      raiseError(`Failed to map sound for ${toLabel(eventName)}.`);
       return;
     }
 
@@ -100,11 +154,19 @@ export default function SettingsApp() {
         clickSoftEnabled?: boolean;
         mappings?: Record<string, string>;
       };
+      if (!parsed || typeof parsed !== "object") {
+        throw new Error("Invalid mapping shape");
+      }
 
       importSoundConfig(parsed);
       setImportMessage(`Imported ${file.name}.`);
+      pushNotification("Sounds", `Imported mapping from ${file.name}.`, {
+        appId: "settings",
+        playSound: false,
+      });
     } catch {
       setImportMessage("Import failed. Invalid JSON mapping.");
+      raiseError("Sound config import failed: invalid JSON mapping.");
     }
   };
 
@@ -232,6 +294,14 @@ export default function SettingsApp() {
                     }}
                   />
                 </label>
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-sm font-medium transition hover:bg-white/20"
+                  onClick={runTestAll}
+                >
+                  {isTestingAll ? <Square size={16} /> : <ListMusic size={16} />}
+                  {isTestingAll ? "Stop test all" : "Test all sounds"}
+                </button>
               </div>
 
               <div className="rounded-xl border border-white/10 bg-black/25 p-3 text-xs text-violet-100/80">

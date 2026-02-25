@@ -4,12 +4,9 @@ PurpleOS is a from-scratch web desktop OS experience built with a premium dark-p
 
 The system includes a real window manager (draggable, resizable, focus/minimize/maximize/close), desktop shell (taskbar + start menu), right-side system panels, and app suite (Settings, Soundboard, Explorer, Notepad, Terminal).
 
-## Run
+## Testing
 
-```bash
-npm install
-npm run dev
-```
+Use the full manual checklist in [TESTING.md](./TESTING.md).
 
 ## Core Highlights
 

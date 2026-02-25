@@ -9,8 +9,9 @@ type ErrorPageProps = {
 
 export default function GlobalErrorBoundary({ error, reset }: ErrorPageProps) {
   useEffect(() => {
-    // Keep this silent in production; the boundary prevents app crashes.
-    void error;
+    if (process.env.NODE_ENV === "development") {
+      console.error("PurpleOS crashed:", error);
+    }
   }, [error]);
 
   return (

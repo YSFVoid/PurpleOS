@@ -28,6 +28,17 @@ const iconMap: Record<AppId, React.ComponentType<{ size?: number }>> = {
   terminal: TerminalSquare,
 };
 
+const lockTimeFormatter = new Intl.DateTimeFormat("en-US", {
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
+const lockDateFormatter = new Intl.DateTimeFormat("en-US", {
+  weekday: "long",
+  month: "long",
+  day: "numeric",
+});
+
 let bootSequencePlayed = false;
 
 export default function Desktop() {
@@ -49,6 +60,7 @@ export default function Desktop() {
   const startMenuOpen = useOSStore((state) => state.startMenuOpen);
   const [altTabOpen, setAltTabOpen] = useState(false);
   const [altTabIndex, setAltTabIndex] = useState(0);
+  const [lockClock, setLockClock] = useState(() => new Date());
 
   const altTabWindows = useMemo(
     () => [...windows].sort((left, right) => right.z - left.z),
@@ -81,6 +93,15 @@ export default function Desktop() {
     );
     return () => timers.forEach((timer) => window.clearTimeout(timer));
   }, [dismissNotification, notifications]);
+
+  useEffect(() => {
+    if (!locked) {
+      return;
+    }
+
+    const timer = window.setInterval(() => setLockClock(new Date()), 1000);
+    return () => window.clearInterval(timer);
+  }, [locked]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -304,17 +325,31 @@ export default function Desktop() {
             animate={{ opacity: 1 }}
             exit={reduceMotion ? undefined : { opacity: 0 }}
             className="absolute inset-0 z-[110] flex items-center justify-center bg-[#05010d]/80 backdrop-blur-xl"
+            onClick={() => {
+              playClickSoft();
+              unlockSystem();
+            }}
           >
-            <div className="glass-panel w-[min(92vw,430px)] rounded-[22px] border border-white/15 p-6 text-center">
+            <div
+              className="glass-panel w-[min(92vw,430px)] rounded-[22px] border border-white/15 p-6 text-center"
+              onClick={(event) => event.stopPropagation()}
+            >
               <p className="text-xs uppercase tracking-[0.2em] text-violet-300/75">Locked</p>
               <h2 className="mt-2 text-2xl font-semibold text-white">PurpleOS Session</h2>
+              <p className="mt-4 text-4xl font-semibold text-violet-50">
+                {lockTimeFormatter.format(lockClock)}
+              </p>
+              <p className="mt-1 text-sm text-violet-200/80">
+                {lockDateFormatter.format(lockClock)}
+              </p>
               <p className="mt-2 text-sm text-violet-100/75">
-                Unlock to return to your desktop.
+                Click anywhere or use the button to unlock.
               </p>
               <button
                 type="button"
                 className="mx-auto mt-5 inline-flex items-center gap-2 rounded-xl border border-violet-200/35 bg-violet-500/30 px-4 py-2 text-sm font-semibold text-violet-50 transition hover:bg-violet-500/40"
-                onClick={() => {
+                onClick={(event) => {
+                  event.stopPropagation();
                   playClickSoft();
                   unlockSystem();
                 }}

@@ -1,7 +1,11 @@
 "use client";
 
 import { create } from "zustand";
-import { createJSONStorage, persist } from "zustand/middleware";
+import {
+  createJSONStorage,
+  persist,
+  type StateStorage,
+} from "zustand/middleware";
 
 import { APP_REGISTRY, type AppId } from "@/lib/apps";
 import {
@@ -230,6 +234,206 @@ const sanitizeMeta = (
   return safe;
 };
 
+const safeLocalStorage: StateStorage = {
+  getItem: (name) => {
+    if (typeof window === "undefined") {
+      return null;
+    }
+
+    const raw = window.localStorage.getItem(name);
+    if (!raw) {
+      return null;
+    }
+
+    try {
+      JSON.parse(raw);
+      return raw;
+    } catch {
+      window.localStorage.removeItem(name);
+      return null;
+    }
+  },
+  setItem: (name, value) => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    window.localStorage.setItem(name, value);
+  },
+  removeItem: (name) => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    window.localStorage.removeItem(name);
+  },
+};
+
+const sanitizeSettings = (input: unknown): OSSettings => {
+  if (!input || typeof input !== "object") {
+    return { ...DEFAULT_SETTINGS };
+  }
+
+  const source = input as Partial<OSSettings>;
+  return {
+    accent:
+      typeof source.accent === "string" && source.accent.trim()
+        ? source.accent
+        : DEFAULT_SETTINGS.accent,
+    wallpaper:
+      typeof source.wallpaper === "string" && source.wallpaper.trim()
+        ? source.wallpaper
+        : DEFAULT_SETTINGS.wallpaper,
+    reduceMotion:
+      typeof source.reduceMotion === "boolean"
+        ? source.reduceMotion
+        : DEFAULT_SETTINGS.reduceMotion,
+    showNoAiLine:
+      typeof source.showNoAiLine === "boolean"
+        ? source.showNoAiLine
+        : DEFAULT_SETTINGS.showNoAiLine,
+  };
+};
+
+const sanitizeSoundState = (input: unknown): OSSoundState => {
+  if (!input || typeof input !== "object") {
+    return { ...DEFAULT_SOUND };
+  }
+
+  const source = input as Partial<OSSoundState> & {
+    packId?: string;
+    mappings?: Record<string, string>;
+    customFilesMeta?: Record<string, CustomSoundMeta>;
+  };
+
+  return {
+    packId:
+      typeof source.packId === "string" && isSoundPackId(source.packId)
+        ? source.packId
+        : DEFAULT_SOUND.packId,
+    volume:
+      typeof source.volume === "number"
+        ? clamp(source.volume, 0, 1)
+        : DEFAULT_SOUND.volume,
+    muted: typeof source.muted === "boolean" ? source.muted : DEFAULT_SOUND.muted,
+    clickSoftEnabled:
+      typeof source.clickSoftEnabled === "boolean"
+        ? source.clickSoftEnabled
+        : DEFAULT_SOUND.clickSoftEnabled,
+    mappings: sanitizeMappings(source.mappings),
+    customFilesMeta: sanitizeMeta(source.customFilesMeta),
+  };
+};
+
+const sanitizeNotificationHistory = (input: unknown): OSNotification[] => {
+  if (!Array.isArray(input)) {
+    return [];
+  }
+
+  return input
+    .filter((entry) => entry && typeof entry === "object")
+    .map((entry) => {
+      const value = entry as Partial<OSNotification>;
+      const level: OSNotification["level"] =
+        value.level === "error" ? "error" : "info";
+      return {
+        id:
+          typeof value.id === "string" && value.id.trim()
+            ? value.id
+            : makeId("ntf"),
+        title: typeof value.title === "string" ? value.title : "Notification",
+        message: typeof value.message === "string" ? value.message : "",
+        createdAt:
+          typeof value.createdAt === "number" ? value.createdAt : Date.now(),
+        level,
+        appId:
+          typeof value.appId === "string" && value.appId in APP_REGISTRY
+            ? (value.appId as AppId)
+            : undefined,
+      };
+    })
+    .slice(0, MAX_HISTORY);
+};
+
+const sanitizeFiles = (input: unknown): ExplorerItem[] => {
+  if (!Array.isArray(input)) {
+    return createInitialFilesystem();
+  }
+
+  const safeFiles = input
+    .filter((entry) => entry && typeof entry === "object")
+    .map((entry) => {
+      const value = entry as Partial<ExplorerItem>;
+      const type: ExplorerItem["type"] =
+        value.type === "folder" ? "folder" : "file";
+      const name =
+        typeof value.name === "string" && value.name.trim()
+          ? value.name
+          : type === "folder"
+            ? "Folder"
+            : "File";
+      return {
+        id:
+          typeof value.id === "string" && value.id.trim()
+            ? value.id
+            : makeId("fs"),
+        type,
+        name,
+        size:
+          typeof value.size === "string" && value.size.trim()
+            ? value.size
+            : type === "folder"
+              ? "--"
+              : "0 KB",
+        modifiedAt:
+          typeof value.modifiedAt === "string" && value.modifiedAt.trim()
+            ? value.modifiedAt
+            : "Unknown",
+        locked: Boolean(value.locked),
+      };
+    });
+
+  return safeFiles.length ? safeFiles : createInitialFilesystem();
+};
+
+const sanitizeWindows = (input: unknown): OSWindow[] => {
+  if (!Array.isArray(input)) {
+    return [];
+  }
+
+  return input
+    .filter((entry) => entry && typeof entry === "object")
+    .map((entry) => {
+      const value = entry as Partial<OSWindow>;
+      const appId =
+        typeof value.appId === "string" && value.appId in APP_REGISTRY
+          ? (value.appId as AppId)
+          : "explorer";
+      return {
+        id:
+          typeof value.id === "string" && value.id.trim()
+            ? value.id
+            : makeId("win"),
+        appId,
+        title:
+          typeof value.title === "string" && value.title.trim()
+            ? value.title
+            : APP_REGISTRY[appId].title,
+        x: typeof value.x === "number" ? value.x : 72,
+        y: typeof value.y === "number" ? value.y : 58,
+        w:
+          typeof value.w === "number"
+            ? Math.max(320, value.w)
+            : APP_REGISTRY[appId].defaultSize.w,
+        h:
+          typeof value.h === "number"
+            ? Math.max(220, value.h)
+            : APP_REGISTRY[appId].defaultSize.h,
+        z: typeof value.z === "number" ? value.z : 1,
+        minimized: Boolean(value.minimized),
+        maximized: Boolean(value.maximized),
+      };
+    });
+};
+
 const applySoundStateToManager = (sound: OSSoundState) => {
   soundManager.applyState({
     packId: sound.packId,
@@ -407,9 +611,19 @@ export const useOSStore = create<OSStore>()(
         });
       },
 
-      setStartMenuOpen: (open) => set({ startMenuOpen: open }),
+      setStartMenuOpen: (open) =>
+        set((state) => ({
+          startMenuOpen: open,
+          sidePanelOpen: open ? false : state.sidePanelOpen,
+        })),
       toggleStartMenu: () =>
-        set((state) => ({ startMenuOpen: !state.startMenuOpen })),
+        set((state) => {
+          const nextOpen = !state.startMenuOpen;
+          return {
+            startMenuOpen: nextOpen,
+            sidePanelOpen: nextOpen ? false : state.sidePanelOpen,
+          };
+        }),
 
       openSidePanel: (tab) =>
         set({
@@ -765,7 +979,7 @@ export const useOSStore = create<OSStore>()(
     }),
     {
       name: "purpleos-store-v2",
-      storage: createJSONStorage(() => localStorage),
+      storage: createJSONStorage(() => safeLocalStorage),
       partialize: (state) => ({
         windows: state.windows,
         focusedWindowId: state.focusedWindowId,
@@ -779,6 +993,20 @@ export const useOSStore = create<OSStore>()(
         if (!state) {
           return;
         }
+
+        state.windows = sanitizeWindows(state.windows);
+        state.focusedWindowId = state.windows.some(
+          (windowData) => windowData.id === state.focusedWindowId
+        )
+          ? state.focusedWindowId
+          : null;
+        state.files = sanitizeFiles(state.files);
+        state.notificationHistory = sanitizeNotificationHistory(
+          state.notificationHistory
+        );
+        state.settings = sanitizeSettings(state.settings);
+        state.sound = sanitizeSoundState(state.sound);
+
         applySoundStateToManager(state.sound);
       },
     }
