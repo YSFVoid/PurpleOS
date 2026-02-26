@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const isProductionBuild = process.env.NODE_ENV === "production";
-const repositoryBasePath = "/WINDOWS-12";
+const repositoryBasePath = "/PurpleOS";
 
 const nextConfig: NextConfig = {
   output: "export",

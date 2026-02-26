@@ -48,7 +48,7 @@ All included audio assets are original placeholder tones generated for this proj
 
 ## GitHub Pages
 
-https://ysfvoid.github.io/WINDOWS-12/
+https://ysfvoid.github.io/PurpleOS/
 
 ## Credits
 
