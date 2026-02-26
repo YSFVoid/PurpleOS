@@ -43,6 +43,7 @@ export default function Desktop() {
   const restoreWindow = useOSStore((state) => state.restoreWindow);
   const reduceMotion = useOSStore((state) => state.settings.reduceMotion);
   const wallpaper = useOSStore((state) => state.settings.wallpaper);
+  const themeMode = useOSStore((state) => state.settings.themeMode);
   const playEvent = useOSStore((state) => state.playEvent);
   const playClickSoft = useOSStore((state) => state.playClickSoft);
   const preloadSounds = useOSStore((state) => state.preloadSounds);
@@ -53,6 +54,7 @@ export default function Desktop() {
   const unlockSystem = useOSStore((state) => state.unlockSystem);
   const loginSession = useOSStore((state) => state.loginSession);
   const restartSession = useOSStore((state) => state.restartSession);
+  const showLoginView = useOSStore((state) => state.showLoginView);
 
   const [altTabOpen, setAltTabOpen] = useState(false);
   const [altTabIndex, setAltTabIndex] = useState(0);
@@ -62,6 +64,7 @@ export default function Desktop() {
   const activeAuthView = authView;
   const desktopReady = activeAuthView === null;
   const activeWallpaper = getWallpaper(wallpaper);
+  const isBlackTheme = themeMode === "black";
 
   const altTabWindows = useMemo(
     () => [...windows].sort((left, right) => right.z - left.z),
@@ -185,17 +188,30 @@ export default function Desktop() {
   ]);
 
   return (
-    <main className="relative h-screen w-screen overflow-hidden bg-[#07030f] text-violet-50">
-      <img
-        src={activeWallpaper.source}
-        alt=""
-        className="absolute inset-0 h-full w-full object-cover opacity-95"
-      />
-      <div className="absolute inset-0 bg-[radial-gradient(85%_75%_at_16%_12%,rgba(154,67,255,0.26),transparent),radial-gradient(70%_70%_at_84%_4%,rgba(119,72,255,0.24),transparent),linear-gradient(180deg,rgba(9,4,20,0.46)_0%,rgba(8,3,18,0.58)_100%)]" />
+    <main
+      className={`relative h-screen w-screen overflow-hidden bg-[#07030f] text-violet-50 ${
+        isBlackTheme ? "theme-black" : ""
+      }`}
+    >
+      {isBlackTheme ? (
+        <>
+          <div className="absolute inset-0 bg-[linear-gradient(180deg,#020202_0%,#050506_100%)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(70%_80%_at_50%_15%,rgba(88,54,173,0.18),transparent),radial-gradient(80%_70%_at_20%_90%,rgba(84,26,115,0.12),transparent)]" />
+        </>
+      ) : (
+        <>
+          <img
+            src={activeWallpaper.source}
+            alt=""
+            className="absolute inset-0 h-full w-full object-cover opacity-95"
+          />
+          <div className="absolute inset-0 bg-[radial-gradient(85%_75%_at_16%_12%,rgba(154,67,255,0.26),transparent),radial-gradient(70%_70%_at_84%_4%,rgba(119,72,255,0.24),transparent),linear-gradient(180deg,rgba(9,4,20,0.46)_0%,rgba(8,3,18,0.58)_100%)]" />
+        </>
+      )}
       <div className="noise-overlay pointer-events-none absolute inset-0 opacity-35" />
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_32%,transparent,rgba(4,2,8,0.74)_75%)]" />
 
-      {reduceMotion ? (
+      {isBlackTheme ? null : reduceMotion ? (
         <>
           <div className="pointer-events-none absolute -left-36 top-10 h-96 w-96 rounded-full bg-fuchsia-500/24 blur-[122px]" />
           <div className="pointer-events-none absolute right-0 top-20 h-[26rem] w-[26rem] rounded-full bg-indigo-500/24 blur-[126px]" />
@@ -316,7 +332,7 @@ export default function Desktop() {
           <LockScreen
             reduceMotion={reduceMotion}
             clock={lockClock}
-            wallpaperSrc={activeWallpaper.source}
+            wallpaperSrc={isBlackTheme ? "" : activeWallpaper.source}
             onUnlock={() => {
               playClickSoft();
               unlockSystem();
@@ -329,7 +345,7 @@ export default function Desktop() {
         {activeAuthView === "login" ? (
           <LoginScreen
             reduceMotion={reduceMotion}
-            wallpaperSrc={activeWallpaper.source}
+            wallpaperSrc={isBlackTheme ? "" : activeWallpaper.source}
             onLogin={() => {
               playClickSoft();
               loginSession();
@@ -353,6 +369,11 @@ export default function Desktop() {
         onClose={() => {
           playClickSoft();
           setShutdownModalOpen(false);
+        }}
+        onConfirm={() => {
+          playEvent("shutdown", { volumeMultiplier: 0.72 });
+          setShutdownModalOpen(false);
+          showLoginView();
         }}
       />
     </main>

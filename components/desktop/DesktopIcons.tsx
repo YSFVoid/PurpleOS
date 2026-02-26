@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import clsx from "clsx";
+import { motion } from "framer-motion";
 import {
   FolderOpen,
   NotebookPen,
@@ -12,7 +13,7 @@ import {
 } from "lucide-react";
 
 import { APP_REGISTRY, DESKTOP_SHORTCUTS, type AppId } from "@/lib/apps";
-import { DESKTOP_ICON_LAYOUT, DESKTOP_ICON_SIZE_MAP, TASKBAR_RESERVED_HEIGHT } from "@/lib/layout";
+import { DESKTOP_ICON_LAYOUT, DESKTOP_ICON_SIZE_MAP, TASKBAR_RESERVED_PX } from "@/lib/layout";
 import type { DesktopIconPosition } from "@/store/useOSStore";
 import { useOSStore } from "@/store/useOSStore";
 
@@ -45,7 +46,7 @@ const getDesktopBounds = (
   iconHeight: number
 ) => {
   const width = Math.max(320, viewport.width);
-  const height = Math.max(320, viewport.height - TASKBAR_RESERVED_HEIGHT - 20);
+  const height = Math.max(320, viewport.height - TASKBAR_RESERVED_PX - 20);
   return {
     width,
     height,
@@ -85,11 +86,13 @@ const toPosition = (col: number, row: number, stepX: number, stepY: number) => (
 export default function DesktopIcons() {
   const openApp = useOSStore((state) => state.openApp);
   const desktop = useOSStore((state) => state.desktop);
+  const reduceMotion = useOSStore((state) => state.settings.reduceMotion);
   const setDesktopIconPosition = useOSStore((state) => state.setDesktopIconPosition);
   const playClickSoft = useOSStore((state) => state.playClickSoft);
   const playEvent = useOSStore((state) => state.playEvent);
 
   const [selectedAppId, setSelectedAppId] = useState<AppId | null>(null);
+  const [launchPulseAppId, setLaunchPulseAppId] = useState<AppId | null>(null);
   const [dragState, setDragState] = useState<DragState | null>(null);
   const [viewport, setViewport] = useState<Viewport>(() => ({
     width: typeof window === "undefined" ? 1280 : window.innerWidth,
@@ -328,7 +331,7 @@ export default function DesktopIcons() {
         const position = resolvedPositions[appId] ?? defaultPositions[appId];
 
         return (
-          <button
+          <motion.button
             key={appId}
             type="button"
             className={clsx(
@@ -341,13 +344,19 @@ export default function DesktopIcons() {
             style={{
               width: `${sizePreset.cellWidth}px`,
               height: `${sizePreset.cellHeight}px`,
-              transform: `translate3d(${position.x}px, ${position.y}px, 0)`,
+              transform: `translate3d(${position.x}px, ${position.y}px, 0) scale(${
+                launchPulseAppId === appId && !reduceMotion ? 1.04 : 1
+              })`,
             }}
+            transition={{ duration: reduceMotion ? 0 : 0.16, ease: "easeOut" }}
+            whileTap={reduceMotion ? undefined : { scale: 0.98 }}
             onClick={() => {
               setSelectedAppId(appId);
             }}
             onDoubleClick={() => {
               playClickSoft();
+              setLaunchPulseAppId(appId);
+              window.setTimeout(() => setLaunchPulseAppId(null), 140);
               openApp(appId);
             }}
             onPointerDown={(event) => {
@@ -372,7 +381,7 @@ export default function DesktopIcons() {
               <Icon size={sizePreset.icon} />
             </span>
             <span className="desktop-icon-label mt-2">{app.title}</span>
-          </button>
+          </motion.button>
         );
       })}
     </section>

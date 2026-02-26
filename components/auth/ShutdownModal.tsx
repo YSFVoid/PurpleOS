@@ -7,12 +7,14 @@ type ShutdownModalProps = {
   open: boolean;
   reduceMotion: boolean;
   onClose: () => void;
+  onConfirm: () => void;
 };
 
 export default function ShutdownModal({
   open,
   reduceMotion,
   onClose,
+  onConfirm,
 }: ShutdownModalProps) {
   return (
     <AnimatePresence>
@@ -43,7 +45,14 @@ export default function ShutdownModal({
             </p>
             <button
               type="button"
-              className="mt-4 rounded-xl border border-white/15 bg-white/10 px-4 py-2 text-sm font-semibold text-violet-50 transition hover:bg-white/16"
+              className="mt-4 rounded-xl border border-rose-200/30 bg-rose-500/20 px-4 py-2 text-sm font-semibold text-rose-100 transition hover:bg-rose-500/30"
+              onClick={onConfirm}
+            >
+              Confirm shutdown
+            </button>
+            <button
+              type="button"
+              className="mt-2 rounded-xl border border-white/15 bg-white/10 px-4 py-2 text-sm font-semibold text-violet-50 transition hover:bg-white/16"
               onClick={onClose}
             >
               Close

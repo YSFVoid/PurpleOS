@@ -1,6 +1,6 @@
 export const TASKBAR_DOCK_HEIGHT = 56;
 export const TASKBAR_DOCK_BOTTOM = 18;
-export const TASKBAR_RESERVED_HEIGHT = 56;
+export const TASKBAR_RESERVED_PX = 56;
 
 export const DESKTOP_ICON_LAYOUT = {
   top: 28,

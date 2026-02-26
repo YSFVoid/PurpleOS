@@ -8,7 +8,7 @@ import {
 } from "zustand/middleware";
 
 import { APP_REGISTRY, type AppId } from "@/lib/apps";
-import { TASKBAR_RESERVED_HEIGHT } from "@/lib/layout";
+import { TASKBAR_RESERVED_PX } from "@/lib/layout";
 import {
   createInitialFilesystem,
   type ExplorerItem,
@@ -33,6 +33,12 @@ export type OSWindow = {
   y: number;
   w: number;
   h: number;
+  lastNormalBounds: {
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+  };
   z: number;
   minimized: boolean;
   maximized: boolean;
@@ -52,6 +58,7 @@ export type OSSettings = {
   wallpaper: string;
   reduceMotion: boolean;
   showNoAiLine: boolean;
+  themeMode: "purple" | "black";
 };
 
 export type SidePanelTab = "notifications" | "quickSettings";
@@ -116,6 +123,11 @@ type OSStore = {
   focusWindow: (windowId: string) => void;
   updateWindowBounds: (windowId: string, patch: WindowBoundsPatch) => void;
   restoreWindow: (windowId: string) => void;
+  restoreWindowForDrag: (
+    windowId: string,
+    cursorX: number,
+    cursorY: number
+  ) => void;
   setStartMenuOpen: (open: boolean) => void;
   toggleStartMenu: () => void;
   openSidePanel: (tab: SidePanelTab) => void;
@@ -144,6 +156,7 @@ type OSStore = {
   setWallpaper: (wallpaper: string) => void;
   setReduceMotion: (reduceMotion: boolean) => void;
   setShowNoAiLine: (enabled: boolean) => void;
+  setThemeMode: (mode: "purple" | "black") => void;
   setDesktopSnapToGrid: (enabled: boolean) => void;
   setDesktopIconSize: (size: DesktopIconSize) => void;
   setDesktopIconPosition: (appId: AppId, position: DesktopIconPosition) => void;
@@ -176,6 +189,7 @@ const DEFAULT_SETTINGS: OSSettings = {
   wallpaper: "purple-nebula",
   reduceMotion: false,
   showNoAiLine: false,
+  themeMode: "purple",
 };
 
 const DEFAULT_DESKTOP: OSDesktopState = {
@@ -316,6 +330,10 @@ const sanitizeSettings = (input: unknown): OSSettings => {
       typeof source.showNoAiLine === "boolean"
         ? source.showNoAiLine
         : DEFAULT_SETTINGS.showNoAiLine,
+    themeMode:
+      source.themeMode === "black" || source.themeMode === "purple"
+        ? source.themeMode
+        : DEFAULT_SETTINGS.themeMode,
   };
 };
 
@@ -508,6 +526,31 @@ const sanitizeWindows = (input: unknown): OSWindow[] => {
           typeof value.h === "number"
             ? Math.max(220, value.h)
             : APP_REGISTRY[appId].defaultSize.h,
+        lastNormalBounds:
+          value.lastNormalBounds &&
+          typeof value.lastNormalBounds === "object" &&
+          typeof value.lastNormalBounds.x === "number" &&
+          typeof value.lastNormalBounds.y === "number" &&
+          typeof value.lastNormalBounds.w === "number" &&
+          typeof value.lastNormalBounds.h === "number"
+            ? {
+                x: value.lastNormalBounds.x,
+                y: value.lastNormalBounds.y,
+                w: Math.max(320, value.lastNormalBounds.w),
+                h: Math.max(220, value.lastNormalBounds.h),
+              }
+            : {
+                x: typeof value.x === "number" ? value.x : 72,
+                y: typeof value.y === "number" ? value.y : 58,
+                w:
+                  typeof value.w === "number"
+                    ? Math.max(320, value.w)
+                    : APP_REGISTRY[appId].defaultSize.w,
+                h:
+                  typeof value.h === "number"
+                    ? Math.max(220, value.h)
+                    : APP_REGISTRY[appId].defaultSize.h,
+              },
         z: typeof value.z === "number" ? value.z : 1,
         minimized: Boolean(value.minimized),
         maximized: Boolean(value.maximized),
@@ -532,6 +575,21 @@ soundManager.applyState({
 });
 
 let lastClickSoftAt = 0;
+let lastWindowFocusAt = 0;
+
+const getDesktopViewport = () => {
+  if (typeof window === "undefined") {
+    return {
+      width: 1280,
+      height: 720 - TASKBAR_RESERVED_PX,
+    };
+  }
+
+  return {
+    width: window.innerWidth,
+    height: Math.max(320, window.innerHeight - TASKBAR_RESERVED_PX),
+  };
+};
 
 const makeWindow = (appId: AppId, windows: OSWindow[]): OSWindow => {
   const app = APP_REGISTRY[appId];
@@ -546,6 +604,12 @@ const makeWindow = (appId: AppId, windows: OSWindow[]): OSWindow => {
     y: 58 + offset * 16,
     w: app.defaultSize.w,
     h: app.defaultSize.h,
+    lastNormalBounds: {
+      x: 72 + offset * 22,
+      y: 58 + offset * 16,
+      w: app.defaultSize.w,
+      h: app.defaultSize.h,
+    },
     z: topZ + 1,
     minimized: false,
     maximized: false,
@@ -583,6 +647,12 @@ export const useOSStore = create<OSStore>()(
             appId,
             ...state.recentApps.filter((entry) => entry !== appId),
           ].slice(0, MAX_RECENT_APPS);
+          if (state.startMenuOpen) {
+            soundManager.play("startClose", { volumeMultiplier: 0.7 });
+          }
+          if (state.sidePanelOpen) {
+            soundManager.play("panelClose", { volumeMultiplier: 0.7 });
+          }
           soundManager.play("openWindow");
           return {
             windows: [...state.windows, nextWindow],
@@ -633,9 +703,16 @@ export const useOSStore = create<OSStore>()(
 
           const nextIsMaximized = !target.maximized;
           const nextZ = getTopZ(state.windows) + 1;
-          if (nextIsMaximized) {
-            soundManager.play("maximize");
-          }
+          const viewport = getDesktopViewport();
+          const maximizeBounds = {
+            x: 0,
+            y: 0,
+            w: viewport.width,
+            h: viewport.height,
+          };
+          const restored = target.lastNormalBounds;
+
+          soundManager.play(nextIsMaximized ? "maximize" : "windowRestore");
 
           return {
             windows: state.windows.map((win) =>
@@ -645,6 +722,18 @@ export const useOSStore = create<OSStore>()(
                     maximized: nextIsMaximized,
                     minimized: false,
                     z: nextZ,
+                    x: nextIsMaximized ? maximizeBounds.x : restored.x,
+                    y: nextIsMaximized ? maximizeBounds.y : restored.y,
+                    w: nextIsMaximized ? maximizeBounds.w : restored.w,
+                    h: nextIsMaximized ? maximizeBounds.h : restored.h,
+                    lastNormalBounds: nextIsMaximized
+                      ? {
+                          x: win.x,
+                          y: win.y,
+                          w: win.w,
+                          h: win.h,
+                        }
+                      : win.lastNormalBounds,
                   }
                 : win
             ),
@@ -662,6 +751,12 @@ export const useOSStore = create<OSStore>()(
           }
 
           const nextZ = getTopZ(state.windows) + 1;
+          const now = Date.now();
+          if (now - lastWindowFocusAt >= 180 && state.focusedWindowId !== windowId) {
+            lastWindowFocusAt = now;
+            soundManager.play("windowFocus", { volumeMultiplier: 0.5 });
+          }
+
           return {
             windows: state.windows.map((win) =>
               win.id === windowId
@@ -675,12 +770,30 @@ export const useOSStore = create<OSStore>()(
       },
 
       updateWindowBounds: (windowId, patch) => {
-        set((state) => ({
-          windows: state.windows.map((win) =>
-            win.id === windowId ? { ...win, ...patch } : win
-          ),
-          snapPreviewZone: null,
-        }));
+        set((state) => {
+          const nextWindows = state.windows.map((win) => {
+            if (win.id !== windowId) {
+              return win;
+            }
+
+            const next = { ...win, ...patch };
+            if (!next.maximized) {
+              next.lastNormalBounds = {
+                x: next.x,
+                y: next.y,
+                w: next.w,
+                h: next.h,
+              };
+            }
+
+            return next;
+          });
+
+          return {
+            windows: nextWindows,
+            snapPreviewZone: null,
+          };
+        });
       },
 
       restoreWindow: (windowId) => {
@@ -700,16 +813,85 @@ export const useOSStore = create<OSStore>()(
             snapPreviewZone: null,
           };
         });
+        soundManager.play("windowRestore", { volumeMultiplier: 0.65 });
+      },
+
+      restoreWindowForDrag: (windowId, cursorX, cursorY) => {
+        set((state) => {
+          const target = state.windows.find((win) => win.id === windowId);
+          if (!target) {
+            return state;
+          }
+
+          const nextZ = getTopZ(state.windows) + 1;
+          if (!target.maximized) {
+            return {
+              windows: state.windows.map((win) =>
+                win.id === windowId ? { ...win, z: nextZ, minimized: false } : win
+              ),
+              focusedWindowId: windowId,
+            };
+          }
+
+          const viewport = getDesktopViewport();
+          const restoreWidth = target.lastNormalBounds.w;
+          const restoreHeight = target.lastNormalBounds.h;
+          const ratioX = cursorX / Math.max(1, viewport.width);
+          const nextX = clamp(
+            cursorX - restoreWidth * ratioX,
+            0,
+            Math.max(0, viewport.width - restoreWidth)
+          );
+          const nextY = clamp(
+            cursorY - 18,
+            0,
+            Math.max(0, viewport.height - restoreHeight)
+          );
+
+          return {
+            windows: state.windows.map((win) =>
+              win.id === windowId
+                ? {
+                    ...win,
+                    maximized: false,
+                    minimized: false,
+                    x: nextX,
+                    y: nextY,
+                    w: restoreWidth,
+                    h: restoreHeight,
+                    z: nextZ,
+                    lastNormalBounds: {
+                      ...win.lastNormalBounds,
+                      x: nextX,
+                      y: nextY,
+                    },
+                  }
+                : win
+            ),
+            focusedWindowId: windowId,
+            snapPreviewZone: null,
+          };
+        });
       },
 
       setStartMenuOpen: (open) =>
-        set((state) => ({
-          startMenuOpen: open,
-          sidePanelOpen: open ? false : state.sidePanelOpen,
-        })),
+        set((state) => {
+          if (state.startMenuOpen !== open) {
+            soundManager.play(open ? "startOpen" : "startClose", {
+              volumeMultiplier: 0.7,
+            });
+          }
+          return {
+            startMenuOpen: open,
+            sidePanelOpen: open ? false : state.sidePanelOpen,
+          };
+        }),
       toggleStartMenu: () =>
         set((state) => {
           const nextOpen = !state.startMenuOpen;
+          soundManager.play(nextOpen ? "startOpen" : "startClose", {
+            volumeMultiplier: 0.7,
+          });
           return {
             startMenuOpen: nextOpen,
             sidePanelOpen: nextOpen ? false : state.sidePanelOpen,
@@ -717,16 +899,9 @@ export const useOSStore = create<OSStore>()(
         }),
 
       openSidePanel: (tab) =>
-        set({
-          sidePanelOpen: true,
-          sidePanelTab: tab,
-          startMenuOpen: false,
-        }),
-      closeSidePanel: () => set({ sidePanelOpen: false }),
-      toggleSidePanel: (tab) =>
         set((state) => {
-          if (state.sidePanelOpen && state.sidePanelTab === tab) {
-            return { sidePanelOpen: false };
+          if (!state.sidePanelOpen) {
+            soundManager.play("panelOpen", { volumeMultiplier: 0.7 });
           }
           return {
             sidePanelOpen: true,
@@ -734,11 +909,36 @@ export const useOSStore = create<OSStore>()(
             startMenuOpen: false,
           };
         }),
+      closeSidePanel: () =>
+        set((state) => {
+          if (state.sidePanelOpen) {
+            soundManager.play("panelClose", { volumeMultiplier: 0.7 });
+          }
+          return { sidePanelOpen: false };
+        }),
+      toggleSidePanel: (tab) =>
+        set((state) => {
+          if (state.sidePanelOpen && state.sidePanelTab === tab) {
+            soundManager.play("panelClose", { volumeMultiplier: 0.7 });
+            return { sidePanelOpen: false };
+          }
+          soundManager.play("panelOpen", { volumeMultiplier: 0.7 });
+          return {
+            sidePanelOpen: true,
+            sidePanelTab: tab,
+            startMenuOpen: false,
+          };
+        }),
       setSidePanelTab: (tab) =>
-        set(() => ({
-          sidePanelOpen: true,
-          sidePanelTab: tab,
-        })),
+        set((state) => {
+          if (!state.sidePanelOpen) {
+            soundManager.play("panelOpen", { volumeMultiplier: 0.7 });
+          }
+          return {
+            sidePanelOpen: true,
+            sidePanelTab: tab,
+          };
+        }),
 
       setSnapPreviewZone: (zone) => set({ snapPreviewZone: zone }),
 
@@ -750,7 +950,7 @@ export const useOSStore = create<OSStore>()(
         const viewportWidth = window.innerWidth;
         const viewportHeight = Math.max(
           320,
-          window.innerHeight - TASKBAR_RESERVED_HEIGHT
+          window.innerHeight - TASKBAR_RESERVED_PX
         );
 
         set((state) => {
@@ -760,6 +960,15 @@ export const useOSStore = create<OSStore>()(
           }
 
           const topZ = getTopZ(state.windows) + 1;
+          const preserveNormal =
+            target.maximized || target.minimized
+              ? target.lastNormalBounds
+              : {
+                  x: target.x,
+                  y: target.y,
+                  w: target.w,
+                  h: target.h,
+                };
           const snappedBounds =
             zone === "left"
               ? {
@@ -793,6 +1002,7 @@ export const useOSStore = create<OSStore>()(
                     ...snappedBounds,
                     minimized: false,
                     z: topZ,
+                    lastNormalBounds: preserveNormal,
                   }
                 : win
             ),
@@ -801,9 +1011,7 @@ export const useOSStore = create<OSStore>()(
           };
         });
 
-        if (zone === "top") {
-          soundManager.play("maximize");
-        }
+        soundManager.play("windowSnap", { volumeMultiplier: 0.7 });
       },
 
       lockSystem: () => {
@@ -941,6 +1149,10 @@ export const useOSStore = create<OSStore>()(
       setShowNoAiLine: (enabled) =>
         set((state) => ({
           settings: { ...state.settings, showNoAiLine: enabled },
+        })),
+      setThemeMode: (themeMode) =>
+        set((state) => ({
+          settings: { ...state.settings, themeMode },
         })),
       setDesktopSnapToGrid: (enabled) =>
         set((state) => ({
@@ -1142,7 +1354,7 @@ export const useOSStore = create<OSStore>()(
           notificationHistory: [],
           recentApps: state.recentApps,
         }));
-        soundManager.play("boot", { volumeMultiplier: 0.65 });
+        soundManager.play("restart", { volumeMultiplier: 0.72 });
       },
     }),
     {

@@ -6,7 +6,7 @@ import { ArrowRightCircle } from "lucide-react";
 type LockScreenProps = {
   reduceMotion: boolean;
   clock: Date;
-  wallpaperSrc: string;
+  wallpaperSrc?: string;
   onUnlock: () => void;
 };
 
@@ -36,11 +36,15 @@ export default function LockScreen({
       transition={{ duration: reduceMotion ? 0 : 0.22 }}
       onClick={onUnlock}
     >
-      <img
-        src={wallpaperSrc}
-        alt=""
-        className="absolute inset-0 h-full w-full object-cover opacity-95"
-      />
+      {wallpaperSrc ? (
+        <img
+          src={wallpaperSrc}
+          alt=""
+          className="absolute inset-0 h-full w-full object-cover opacity-95"
+        />
+      ) : (
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,#020202_0%,#060607_100%)]" />
+      )}
       <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" />
 
       <motion.div

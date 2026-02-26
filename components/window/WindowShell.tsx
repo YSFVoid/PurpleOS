@@ -37,6 +37,7 @@ export default function WindowShell({ windowData, children }: WindowShellProps) 
   const minimizeWindow = useOSStore((state) => state.minimizeWindow);
   const toggleMaximize = useOSStore((state) => state.toggleMaximize);
   const updateWindowBounds = useOSStore((state) => state.updateWindowBounds);
+  const restoreWindowForDrag = useOSStore((state) => state.restoreWindowForDrag);
   const setSnapPreviewZone = useOSStore((state) => state.setSnapPreviewZone);
   const applySnapWindow = useOSStore((state) => state.applySnapWindow);
   const playClickSoft = useOSStore((state) => state.playClickSoft);
@@ -75,9 +76,10 @@ export default function WindowShell({ windowData, children }: WindowShellProps) 
       minWidth={app.minSize.w}
       minHeight={app.minSize.h}
       bounds="parent"
-      disableDragging={windowData.maximized}
+      disableDragging={false}
       enableResizing={!windowData.maximized}
       dragHandleClassName="window-drag-handle"
+      cancel="button,input,textarea,select,a,[role='button'],.window-control,.window-content-interactive"
       style={{ zIndex: windowData.z }}
       onMouseDown={() => focusWindow(windowData.id)}
       onDragStart={() => {
@@ -85,19 +87,25 @@ export default function WindowShell({ windowData, children }: WindowShellProps) 
         setSnapPreviewZone(null);
       }}
       onDrag={(_, data) => {
-        if (windowData.maximized) {
+        const liveWindow = useOSStore
+          .getState()
+          .windows.find((win) => win.id === windowData.id);
+        if (liveWindow?.maximized) {
           return;
         }
-        const width = data.node?.offsetWidth ?? windowData.w;
+        const width = data.node?.offsetWidth ?? liveWindow?.w ?? windowData.w;
         const zone = detectSnapZone(data.x, data.y, width);
         setSnapPreviewZone(zone);
       }}
       onDragStop={(_, data) => {
-        if (windowData.maximized) {
+        const liveWindow = useOSStore
+          .getState()
+          .windows.find((win) => win.id === windowData.id);
+        if (!liveWindow || liveWindow.maximized) {
           return;
         }
 
-        const width = data.node?.offsetWidth ?? windowData.w;
+        const width = data.node?.offsetWidth ?? liveWindow.w;
         const zone = detectSnapZone(data.x, data.y, width);
         if (zone) {
           applySnapWindow(windowData.id, zone);
@@ -117,17 +125,28 @@ export default function WindowShell({ windowData, children }: WindowShellProps) 
     >
       <motion.div
         layout={!reduceMotion}
-        initial={reduceMotion ? undefined : { opacity: 0, y: 14, scale: 0.985 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        exit={reduceMotion ? undefined : { opacity: 0, y: 8, scale: 0.985 }}
-        transition={{ duration: 0.24, ease: "easeOut" }}
+        initial={reduceMotion ? undefined : { opacity: 0, y: 12, scale: 0.982, filter: "blur(6px)" }}
+        animate={{ opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }}
+        exit={reduceMotion ? undefined : { opacity: 0, y: 10, scale: 0.94, filter: "blur(5px)" }}
+        transition={{ duration: 0.22, ease: "easeOut" }}
         className={`flex h-full flex-col overflow-hidden rounded-[18px] border backdrop-blur-xl ${
           isFocused
-            ? "border-violet-200/35 bg-[#0e0822]/72 shadow-[0_26px_85px_rgba(16,5,37,0.68),0_0_0_1px_rgba(193,167,255,0.12)]"
-            : "border-white/12 bg-[#0b0819]/64 shadow-[0_18px_62px_rgba(8,3,24,0.55)]"
+            ? "window-frame window-frame-focused border-violet-200/35 bg-[#0e0822]/72 shadow-[0_26px_85px_rgba(16,5,37,0.68),0_0_0_1px_rgba(193,167,255,0.12)]"
+            : "window-frame border-white/12 bg-[#0b0819]/64 shadow-[0_18px_62px_rgba(8,3,24,0.55)]"
         }`}
       >
-        <div className="window-drag-handle flex h-10 items-center justify-between border-b border-white/10 bg-gradient-to-r from-white/11 to-white/4 px-3">
+        <div
+          className="window-drag-handle flex h-10 items-center justify-between border-b border-white/10 bg-gradient-to-r from-white/11 to-white/4 px-3"
+          onMouseDown={(event) => {
+            const target = event.target as Element;
+            if (target.closest(".window-control")) {
+              return;
+            }
+            if (windowData.maximized) {
+              restoreWindowForDrag(windowData.id, event.clientX, event.clientY);
+            }
+          }}
+        >
           <div className="flex items-center gap-2">
             <span className="rounded-md border border-white/15 bg-white/10 p-1.5 text-violet-100">
               <Icon size={13} />
@@ -141,7 +160,7 @@ export default function WindowShell({ windowData, children }: WindowShellProps) 
             <button
               type="button"
               aria-label="Minimize window"
-              className="rounded-md border border-transparent p-1 text-violet-100/80 transition hover:border-white/15 hover:bg-white/10 hover:text-violet-50"
+              className="window-control rounded-md border border-transparent p-1 text-violet-100/80 transition hover:border-white/15 hover:bg-white/10 hover:text-violet-50"
               onClick={(event) => {
                 event.stopPropagation();
                 playClickSoft();
@@ -153,7 +172,7 @@ export default function WindowShell({ windowData, children }: WindowShellProps) 
             <button
               type="button"
               aria-label="Maximize window"
-              className="rounded-md border border-transparent p-1 text-violet-100/80 transition hover:border-white/15 hover:bg-white/10 hover:text-violet-50"
+              className="window-control rounded-md border border-transparent p-1 text-violet-100/80 transition hover:border-white/15 hover:bg-white/10 hover:text-violet-50"
               onClick={(event) => {
                 event.stopPropagation();
                 playClickSoft();
@@ -165,7 +184,7 @@ export default function WindowShell({ windowData, children }: WindowShellProps) 
             <button
               type="button"
               aria-label="Close window"
-              className="rounded-md border border-transparent p-1 text-violet-100/80 transition hover:border-rose-200/20 hover:bg-rose-400/20 hover:text-rose-100"
+              className="window-control rounded-md border border-transparent p-1 text-violet-100/80 transition hover:border-rose-200/20 hover:bg-rose-400/20 hover:text-rose-100"
               onClick={(event) => {
                 event.stopPropagation();
                 playClickSoft();
@@ -177,7 +196,7 @@ export default function WindowShell({ windowData, children }: WindowShellProps) 
           </div>
         </div>
 
-        <div className="h-full min-h-0 p-3">{children}</div>
+        <div className="window-content-interactive h-full min-h-0 p-3">{children}</div>
       </motion.div>
     </Rnd>
   );

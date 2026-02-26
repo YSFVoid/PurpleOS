@@ -34,10 +34,10 @@ const toLabel = (value: string) =>
     .replace(/([A-Z])/g, " $1")
     .replace(/^./, (char) => char.toUpperCase());
 
-type TabKey = "sounds" | "desktop" | "about";
+type TabKey = "desktop" | "sounds" | "theme" | "about";
 
 export default function SettingsApp() {
-  const [activeTab, setActiveTab] = useState<TabKey>("sounds");
+  const [activeTab, setActiveTab] = useState<TabKey>("desktop");
   const [importMessage, setImportMessage] = useState<string | null>(null);
   const [isTestingAll, setIsTestingAll] = useState(false);
   const testTimeoutsRef = useRef<number[]>([]);
@@ -57,6 +57,7 @@ export default function SettingsApp() {
   const setClickSoftEnabled = useOSStore((state) => state.setClickSoftEnabled);
   const setReduceMotion = useOSStore((state) => state.setReduceMotion);
   const setShowNoAiLine = useOSStore((state) => state.setShowNoAiLine);
+  const setThemeMode = useOSStore((state) => state.setThemeMode);
   const setDesktopSnapToGrid = useOSStore((state) => state.setDesktopSnapToGrid);
   const setDesktopIconSize = useOSStore((state) => state.setDesktopIconSize);
   const resetDesktopIconLayout = useOSStore((state) => state.resetDesktopIconLayout);
@@ -182,8 +183,9 @@ export default function SettingsApp() {
       <div className="glass-panel flex items-center gap-2 rounded-2xl p-2">
         {(
           [
-            { key: "sounds", label: "Sounds" },
             { key: "desktop", label: "Desktop" },
+            { key: "sounds", label: "Sound" },
+            { key: "theme", label: "Theme" },
             { key: "about", label: "About / Credits" },
           ] as const
         ).map((tab) => (
@@ -487,6 +489,51 @@ export default function SettingsApp() {
                 </button>
               ))}
             </div>
+          </div>
+        </section>
+      ) : null}
+
+      {activeTab === "theme" ? (
+        <section className="glass-panel h-full rounded-2xl p-5">
+          <h2 className="text-base font-semibold text-white">Theme</h2>
+          <p className="mt-1 text-xs text-violet-100/70">
+            Switch visual mode while keeping the PurpleOS accent style.
+          </p>
+          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <button
+              type="button"
+              className={`rounded-2xl border p-4 text-left transition ${
+                settings.themeMode === "purple"
+                  ? "border-violet-300/40 bg-violet-500/22"
+                  : "border-white/10 bg-black/25 hover:border-white/20"
+              }`}
+              onClick={() => {
+                setThemeMode("purple");
+                playClickSoft();
+              }}
+            >
+              <p className="text-sm font-semibold text-violet-50">Purple</p>
+              <p className="mt-1 text-xs text-violet-200/70">
+                Rich purple gradients with glass surfaces.
+              </p>
+            </button>
+            <button
+              type="button"
+              className={`rounded-2xl border p-4 text-left transition ${
+                settings.themeMode === "black"
+                  ? "border-violet-300/40 bg-violet-500/16"
+                  : "border-white/10 bg-black/25 hover:border-white/20"
+              }`}
+              onClick={() => {
+                setThemeMode("black");
+                playClickSoft();
+              }}
+            >
+              <p className="text-sm font-semibold text-violet-50">Black</p>
+              <p className="mt-1 text-xs text-violet-200/70">
+                Near-true black backdrop with subtle purple highlights.
+              </p>
+            </button>
           </div>
         </section>
       ) : null}

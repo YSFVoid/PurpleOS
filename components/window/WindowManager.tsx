@@ -9,7 +9,7 @@ import NotepadApp from "@/apps/NotepadApp";
 import SettingsApp from "@/apps/SettingsApp";
 import SoundboardApp from "@/apps/SoundboardApp";
 import TerminalApp from "@/apps/TerminalApp";
-import { TASKBAR_RESERVED_HEIGHT } from "@/lib/layout";
+import { TASKBAR_RESERVED_PX } from "@/lib/layout";
 import type { AppId } from "@/lib/apps";
 import { useOSStore } from "@/store/useOSStore";
 
@@ -39,7 +39,7 @@ export default function WindowManager() {
   return (
     <div
       className="pointer-events-none absolute inset-x-0 top-0 z-30"
-      style={{ bottom: `${TASKBAR_RESERVED_HEIGHT}px` }}
+      style={{ bottom: `${TASKBAR_RESERVED_PX}px` }}
     >
       <AnimatePresence>
         {snapPreviewZone ? (
@@ -71,10 +71,18 @@ export default function WindowManager() {
               <motion.div
                 key={windowData.id}
                 className="pointer-events-auto"
-                initial={reduceMotion ? undefined : { opacity: 0, scale: 0.99 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={reduceMotion ? undefined : { opacity: 0, scale: 0.99 }}
-                transition={{ duration: reduceMotion ? 0 : 0.2, ease: "easeOut" }}
+                initial={
+                  reduceMotion
+                    ? undefined
+                    : { opacity: 0, scale: 0.982, y: 10, filter: "blur(5px)" }
+                }
+                animate={{ opacity: 1, scale: 1, y: 0, filter: "blur(0px)" }}
+                exit={
+                  reduceMotion
+                    ? undefined
+                    : { opacity: 0, scale: 0.9, y: 120, filter: "blur(4px)" }
+                }
+                transition={{ duration: reduceMotion ? 0 : 0.22, ease: "easeOut" }}
               >
                 <WindowShell windowData={windowData}>
                   <AppComponent windowId={windowData.id} />

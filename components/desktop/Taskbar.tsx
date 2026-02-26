@@ -71,44 +71,54 @@ export default function Taskbar() {
     [focusedWindowId, windows]
   );
 
-  const latestWindowByApp = useMemo(() => {
-    const map = new Map<AppId, (typeof windows)[number]>();
+  const windowsByApp = useMemo(() => {
+    const map = new Map<AppId, (typeof windows)>();
     const ordered = [...windows].sort((left, right) => right.z - left.z);
     for (const windowData of ordered) {
-      if (!map.has(windowData.appId)) {
-        map.set(windowData.appId, windowData);
-      }
+      const existing = map.get(windowData.appId) ?? [];
+      existing.push(windowData);
+      map.set(windowData.appId, existing);
     }
     return map;
   }, [windows]);
 
   const dockApps = useMemo(() => {
     const merged: AppId[] = [...TASKBAR_PINNED_APPS];
-    const running = [...latestWindowByApp.keys()].filter(
+    const running = [...windowsByApp.keys()].filter(
       (appId) => !merged.includes(appId)
     );
     return [...merged, ...running];
-  }, [latestWindowByApp]);
+  }, [windowsByApp]);
 
   const handleAppClick = (appId: AppId) => {
     playClickSoft();
-    const target = latestWindowByApp.get(appId);
-    if (!target) {
+    const appWindows = windowsByApp.get(appId) ?? [];
+    if (!appWindows.length) {
       openApp(appId);
       return;
     }
 
-    if (target.minimized) {
-      restoreWindow(target.id);
+    const focusedMatch = appWindows.find(
+      (windowData) => windowData.id === focusedWindowId && !windowData.minimized
+    );
+    if (focusedMatch) {
+      minimizeWindow(focusedMatch.id);
       return;
     }
 
-    if (focusedWindowId === target.id) {
-      minimizeWindow(target.id);
+    const minimizedCandidate = appWindows.find((windowData) => windowData.minimized);
+    if (minimizedCandidate) {
+      restoreWindow(minimizedCandidate.id);
       return;
     }
 
-    focusWindow(target.id);
+    const visibleCandidate = appWindows.find((windowData) => !windowData.minimized);
+    if (visibleCandidate) {
+      focusWindow(visibleCandidate.id);
+      return;
+    }
+
+    openApp(appId);
   };
 
   return (
@@ -144,16 +154,18 @@ export default function Taskbar() {
             {dockApps.map((appId) => {
               const Icon = appIconMap[appId];
               const app = APP_REGISTRY[appId];
-              const runningWindow = latestWindowByApp.get(appId);
-              const isRunning = Boolean(runningWindow);
+              const appWindows = windowsByApp.get(appId) ?? [];
+              const isRunning = appWindows.length > 0;
               const isFocused =
-                focusedWindow?.appId === appId && Boolean(focusedWindow) && !focusedWindow.minimized;
+                focusedWindow?.appId === appId &&
+                Boolean(focusedWindow) &&
+                !focusedWindow.minimized;
 
               return (
                 <button
                   key={appId}
                   type="button"
-                  className={`dock-icon-button group relative h-10 w-10 ${
+                  className={`dock-icon-button group relative h-10 w-10 shrink-0 ${
                     isFocused ? "dock-icon-button-focused" : ""
                   }`}
                   onClick={() => handleAppClick(appId)}

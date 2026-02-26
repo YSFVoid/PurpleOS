@@ -5,7 +5,7 @@ import { Power, RotateCcw } from "lucide-react";
 
 type LoginScreenProps = {
   reduceMotion: boolean;
-  wallpaperSrc: string;
+  wallpaperSrc?: string;
   onLogin: () => void;
   onOpenPowerModal: () => void;
   onRestart: () => void;
@@ -26,11 +26,15 @@ export default function LoginScreen({
       exit={reduceMotion ? undefined : { opacity: 0 }}
       transition={{ duration: reduceMotion ? 0 : 0.22 }}
     >
-      <img
-        src={wallpaperSrc}
-        alt=""
-        className="absolute inset-0 h-full w-full object-cover opacity-95"
-      />
+      {wallpaperSrc ? (
+        <img
+          src={wallpaperSrc}
+          alt=""
+          className="absolute inset-0 h-full w-full object-cover opacity-95"
+        />
+      ) : (
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,#010101_0%,#060607_100%)]" />
+      )}
       <div className="absolute inset-0 bg-black/45 backdrop-blur-[3px]" />
 
       <motion.div
