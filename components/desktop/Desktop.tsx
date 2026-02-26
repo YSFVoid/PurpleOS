@@ -232,7 +232,7 @@ export default function Desktop() {
       )}
 
       <div className="pointer-events-none absolute left-1/2 top-[46%] z-10 -translate-x-1/2 -translate-y-1/2 text-center">
-        <p className="text-[13px] font-medium uppercase tracking-[0.42em] text-violet-200/55">
+        <p className="text-[13px] font-medium tracking-[0.42em] text-violet-200/55">
           PurpleOS
         </p>
       </div>

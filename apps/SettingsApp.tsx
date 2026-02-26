@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { AnimatePresence, motion } from "framer-motion";
 import {
   Download,
   Import,
@@ -14,7 +15,6 @@ import {
 } from "lucide-react";
 
 import {
-  CREDITS_OPTIONAL_LINE,
   CREDITS_PRIMARY_LINE,
   CREDITS_SECONDARY_LINE,
 } from "@/lib/credits";
@@ -36,6 +36,13 @@ const toLabel = (value: string) =>
 
 type TabKey = "desktop" | "sounds" | "theme" | "about";
 
+const TABS: Array<{ key: TabKey; label: string }> = [
+  { key: "desktop", label: "Desktop" },
+  { key: "sounds", label: "Sound" },
+  { key: "theme", label: "Theme" },
+  { key: "about", label: "About / Credits" },
+];
+
 export default function SettingsApp() {
   const [activeTab, setActiveTab] = useState<TabKey>("desktop");
   const [importMessage, setImportMessage] = useState<string | null>(null);
@@ -56,8 +63,8 @@ export default function SettingsApp() {
   const raiseError = useOSStore((state) => state.raiseError);
   const setClickSoftEnabled = useOSStore((state) => state.setClickSoftEnabled);
   const setReduceMotion = useOSStore((state) => state.setReduceMotion);
-  const setShowNoAiLine = useOSStore((state) => state.setShowNoAiLine);
   const setThemeMode = useOSStore((state) => state.setThemeMode);
+  const setSnapEnabled = useOSStore((state) => state.setSnapEnabled);
   const setDesktopSnapToGrid = useOSStore((state) => state.setDesktopSnapToGrid);
   const setDesktopIconSize = useOSStore((state) => state.setDesktopIconSize);
   const resetDesktopIconLayout = useOSStore((state) => state.resetDesktopIconLayout);
@@ -65,6 +72,43 @@ export default function SettingsApp() {
   const playClickSoft = useOSStore((state) => state.playClickSoft);
 
   const activePack = useMemo(() => getSoundPack(sound.packId), [sound.packId]);
+  const reduceMotion = settings.reduceMotion;
+
+  const hoverMotion = reduceMotion ? undefined : { y: -1, scale: 1.01 };
+  const tapMotion = reduceMotion ? undefined : { scale: 0.985 };
+
+  const panelVariants = {
+    hidden: reduceMotion
+      ? { opacity: 0 }
+      : { opacity: 0, y: 10, filter: "blur(5px)" },
+    show: {
+      opacity: 1,
+      y: 0,
+      filter: "blur(0px)",
+      transition: {
+        duration: reduceMotion ? 0.12 : 0.22,
+        staggerChildren: reduceMotion ? 0 : 0.06,
+        delayChildren: reduceMotion ? 0 : 0.03,
+      },
+    },
+    exit: reduceMotion
+      ? { opacity: 0 }
+      : {
+          opacity: 0,
+          y: 6,
+          filter: "blur(4px)",
+          transition: { duration: 0.16 },
+        },
+  };
+
+  const cardVariants = {
+    hidden: reduceMotion ? { opacity: 0 } : { opacity: 0, y: 8 },
+    show: {
+      opacity: 1,
+      y: 0,
+      transition: { duration: reduceMotion ? 0.14 : 0.2 },
+    },
+  };
 
   const stopTestAll = () => {
     testTimeoutsRef.current.forEach((timeoutId) => window.clearTimeout(timeoutId));
@@ -179,389 +223,433 @@ export default function SettingsApp() {
   };
 
   return (
-    <div className="flex h-full flex-col gap-4 text-violet-100">
-      <div className="glass-panel flex items-center gap-2 rounded-2xl p-2">
-        {(
-          [
-            { key: "desktop", label: "Desktop" },
-            { key: "sounds", label: "Sound" },
-            { key: "theme", label: "Theme" },
-            { key: "about", label: "About / Credits" },
-          ] as const
-        ).map((tab) => (
-          <button
-            key={tab.key}
-            type="button"
-            className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
-              activeTab === tab.key
-                ? "bg-violet-500/40 text-white"
-                : "text-violet-200/80 hover:bg-white/10"
-            }`}
-            onClick={() => {
-              playClickSoft();
-              setActiveTab(tab.key);
-            }}
-          >
-            {tab.label}
-          </button>
-        ))}
+    <div className="flex h-full min-h-0 flex-col gap-3 text-violet-100">
+      <div className="shrink-0">
+        <div className="glass-panel flex flex-wrap items-center gap-2 rounded-2xl p-2">
+          {TABS.map((tab) => (
+            <motion.button
+              key={tab.key}
+              type="button"
+              whileHover={hoverMotion}
+              whileTap={tapMotion}
+              className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
+                activeTab === tab.key
+                  ? "bg-violet-500/40 text-white"
+                  : "text-violet-200/80 hover:bg-white/10"
+              }`}
+              onClick={() => {
+                playClickSoft();
+                setActiveTab(tab.key);
+              }}
+            >
+              {tab.label}
+            </motion.button>
+          ))}
+        </div>
       </div>
 
-      {activeTab === "sounds" ? (
-        <div className="grid h-full min-h-0 grid-cols-1 gap-4 lg:grid-cols-[1.05fr_1.35fr]">
-          <section className="glass-panel rounded-2xl p-4">
-            <h2 className="text-base font-semibold text-white">Global Sound</h2>
-            <p className="mt-1 text-xs text-violet-100/70">
-              Choose a pack, tune volume, and enable or disable click feedback.
-            </p>
-
-            <div className="mt-4 space-y-4">
-              <label className="block">
-                <span className="text-xs font-medium uppercase tracking-[0.18em] text-violet-200/70">
-                  Sound Pack
-                </span>
-                <select
-                  value={sound.packId}
-                  onChange={(event) => {
-                    setPack(event.target.value as SoundPackId);
-                    playClickSoft();
-                  }}
-                  className="mt-2 w-full rounded-xl border border-white/15 bg-black/30 px-3 py-2 text-sm text-violet-50 outline-none ring-violet-300/40 transition focus:ring-2"
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain pb-6 pr-1">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={activeTab}
+            variants={panelVariants}
+            initial="hidden"
+            animate="show"
+            exit="exit"
+            className="space-y-4"
+          >
+            {activeTab === "sounds" ? (
+              <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)]">
+                <motion.section
+                  variants={cardVariants}
+                  className="glass-panel rounded-2xl p-4"
                 >
-                  {SOUND_PACK_IDS.map((packId) => (
-                    <option key={packId} value={packId}>
-                      {getSoundPack(packId).label}
-                    </option>
-                  ))}
-                </select>
-              </label>
+                  <h2 className="text-base font-semibold text-white">Global Sound</h2>
+                  <p className="mt-1 text-xs text-violet-100/70">
+                    Choose a pack, tune volume, and enable or disable click feedback.
+                  </p>
 
-              <label className="block">
-                <span className="text-xs font-medium uppercase tracking-[0.18em] text-violet-200/70">
-                  Volume ({Math.round(sound.volume * 100)}%)
-                </span>
-                <input
-                  type="range"
-                  min={0}
-                  max={1}
-                  step={0.01}
-                  value={sound.volume}
-                  onChange={(event) => setVolume(Number(event.target.value))}
-                  className="mt-2 w-full accent-violet-400"
-                />
-              </label>
-
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-sm font-medium transition hover:bg-white/20"
-                  onClick={() => {
-                    playClickSoft();
-                    toggleMute();
-                  }}
-                >
-                  {sound.muted ? <VolumeX size={16} /> : <Volume2 size={16} />}
-                  {sound.muted ? "Unmute" : "Mute"}
-                </button>
-                <button
-                  type="button"
-                  className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-sm font-medium transition hover:bg-white/20"
-                  onClick={() => {
-                    playClickSoft();
-                    if (window.confirm("Reset all sound mappings to defaults?")) {
-                      resetSounds();
-                    }
-                  }}
-                >
-                  <RotateCcw size={16} />
-                  Reset to defaults
-                </button>
-                <button
-                  type="button"
-                  className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-sm font-medium transition hover:bg-white/20"
-                  onClick={handleExport}
-                >
-                  <Download size={16} />
-                  Export JSON
-                </button>
-                <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-sm font-medium transition hover:bg-white/20">
-                  <Import size={16} />
-                  Import JSON
-                  <input
-                    type="file"
-                    accept="application/json"
-                    className="hidden"
-                    onChange={(event) => {
-                      playClickSoft();
-                      void handleImport(event.target.files?.[0] ?? null);
-                      event.currentTarget.value = "";
-                    }}
-                  />
-                </label>
-                <button
-                  type="button"
-                  className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-sm font-medium transition hover:bg-white/20"
-                  onClick={runTestAll}
-                >
-                  {isTestingAll ? <Square size={16} /> : <ListMusic size={16} />}
-                  {isTestingAll ? "Stop test all" : "Test all sounds"}
-                </button>
-              </div>
-
-              <div className="rounded-xl border border-white/10 bg-black/25 p-3 text-xs text-violet-100/80">
-                <p className="font-semibold text-violet-50">
-                  Active pack: {activePack.label}
-                </p>
-                <p className="mt-1">{activePack.description}</p>
-                {importMessage ? <p className="mt-2 text-violet-200">{importMessage}</p> : null}
-              </div>
-            </div>
-
-            <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={sound.clickSoftEnabled}
-                  onChange={(event) => setClickSoftEnabled(event.target.checked)}
-                />
-                ClickSoft for major buttons
-              </label>
-              <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={settings.reduceMotion}
-                  onChange={(event) => setReduceMotion(event.target.checked)}
-                />
-                Reduce motion
-              </label>
-            </div>
-          </section>
-
-          <section className="glass-panel flex min-h-0 flex-col rounded-2xl p-4">
-            <h2 className="text-base font-semibold text-white">Per-event mapping</h2>
-            <p className="mt-1 text-xs text-violet-100/70">
-              Upload an audio file for each event, test instantly, and keep custom mappings in local storage.
-            </p>
-            <div className="mt-4 flex-1 space-y-2 overflow-auto pr-1">
-              {SOUND_EVENTS.map((eventName) => {
-                const meta = sound.customFilesMeta[eventName];
-                const defaultFile = activePack.events[eventName];
-                return (
-                  <div
-                    key={eventName}
-                    className="grid grid-cols-1 gap-2 rounded-xl border border-white/10 bg-black/25 p-3 md:grid-cols-[1fr_auto]"
-                  >
-                    <div>
-                      <p className="text-sm font-semibold text-violet-50">
-                        {toLabel(eventName)}
-                      </p>
-                      <p className="text-xs text-violet-100/65">
-                        Source: {meta?.name ?? defaultFile}
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <button
-                        type="button"
-                        className="rounded-lg border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-medium transition hover:bg-white/20"
-                        onClick={() => playEvent(eventName)}
+                  <div className="mt-4 space-y-4">
+                    <label className="block">
+                      <span className="text-xs font-medium uppercase tracking-[0.18em] text-violet-200/70">
+                        Sound Pack
+                      </span>
+                      <select
+                        value={sound.packId}
+                        onChange={(event) => {
+                          setPack(event.target.value as SoundPackId);
+                          playClickSoft();
+                        }}
+                        className="mt-2 w-full rounded-xl border border-white/15 bg-black/30 px-3 py-2 text-sm text-violet-50 outline-none ring-violet-300/40 transition focus:ring-2"
                       >
-                        Test
-                      </button>
-                      <label className="cursor-pointer rounded-lg border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-medium transition hover:bg-white/20">
-                        Upload
+                        {SOUND_PACK_IDS.map((packId) => (
+                          <option key={packId} value={packId}>
+                            {getSoundPack(packId).label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label className="block">
+                      <span className="text-xs font-medium uppercase tracking-[0.18em] text-violet-200/70">
+                        Volume ({Math.round(sound.volume * 100)}%)
+                      </span>
+                      <input
+                        type="range"
+                        min={0}
+                        max={1}
+                        step={0.01}
+                        value={sound.volume}
+                        onChange={(event) => setVolume(Number(event.target.value))}
+                        className="mt-2 w-full accent-violet-400"
+                      />
+                    </label>
+
+                    <div className="flex flex-wrap gap-2">
+                      <motion.button
+                        type="button"
+                        whileHover={hoverMotion}
+                        whileTap={tapMotion}
+                        className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-sm font-medium transition hover:bg-white/20"
+                        onClick={() => {
+                          playClickSoft();
+                          toggleMute();
+                        }}
+                      >
+                        {sound.muted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+                        {sound.muted ? "Unmute" : "Mute"}
+                      </motion.button>
+                      <motion.button
+                        type="button"
+                        whileHover={hoverMotion}
+                        whileTap={tapMotion}
+                        className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-sm font-medium transition hover:bg-white/20"
+                        onClick={() => {
+                          playClickSoft();
+                          if (window.confirm("Reset all sound mappings to defaults?")) {
+                            resetSounds();
+                          }
+                        }}
+                      >
+                        <RotateCcw size={16} />
+                        Reset to defaults
+                      </motion.button>
+                      <motion.button
+                        type="button"
+                        whileHover={hoverMotion}
+                        whileTap={tapMotion}
+                        className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-sm font-medium transition hover:bg-white/20"
+                        onClick={handleExport}
+                      >
+                        <Download size={16} />
+                        Export JSON
+                      </motion.button>
+                      <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-sm font-medium transition hover:bg-white/20">
+                        <Import size={16} />
+                        Import JSON
                         <input
                           type="file"
-                          accept="audio/mp3,audio/mpeg,audio/wav,audio/ogg,audio/*"
+                          accept="application/json"
                           className="hidden"
                           onChange={(event) => {
-                            void handleCustomUpload(
-                              eventName,
-                              event.target.files?.[0] ?? null
-                            );
+                            playClickSoft();
+                            void handleImport(event.target.files?.[0] ?? null);
                             event.currentTarget.value = "";
                           }}
                         />
                       </label>
-                      <button
+                      <motion.button
                         type="button"
-                        className="rounded-lg border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-medium transition hover:bg-white/20"
+                        whileHover={hoverMotion}
+                        whileTap={tapMotion}
+                        className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-sm font-medium transition hover:bg-white/20"
+                        onClick={runTestAll}
+                      >
+                        {isTestingAll ? <Square size={16} /> : <ListMusic size={16} />}
+                        {isTestingAll ? "Stop test all" : "Test all sounds"}
+                      </motion.button>
+                    </div>
+
+                    <div className="rounded-xl border border-white/10 bg-black/25 p-3 text-xs text-violet-100/80">
+                      <p className="font-semibold text-violet-50">
+                        Active pack: {activePack.label}
+                      </p>
+                      <p className="mt-1">{activePack.description}</p>
+                      {importMessage ? (
+                        <p className="mt-2 text-violet-200">{importMessage}</p>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={sound.clickSoftEnabled}
+                        onChange={(event) => setClickSoftEnabled(event.target.checked)}
+                      />
+                      ClickSoft for major buttons
+                    </label>
+                    <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={settings.reduceMotion}
+                        onChange={(event) => setReduceMotion(event.target.checked)}
+                      />
+                      Reduce motion
+                    </label>
+                  </div>
+                </motion.section>
+
+                <motion.section
+                  variants={cardVariants}
+                  className="glass-panel rounded-2xl p-4"
+                >
+                  <h2 className="text-base font-semibold text-white">Per-event mapping</h2>
+                  <p className="mt-1 text-xs text-violet-100/70">
+                    Upload an audio file for each event, test instantly, and keep custom mappings in local storage.
+                  </p>
+
+                  <div className="mt-4 max-h-[min(52vh,440px)] space-y-2 overflow-auto pr-1">
+                    {SOUND_EVENTS.map((eventName) => {
+                      const meta = sound.customFilesMeta[eventName];
+                      const defaultFile = activePack.events[eventName];
+                      return (
+                        <div
+                          key={eventName}
+                          className="grid grid-cols-1 gap-2 rounded-xl border border-white/10 bg-black/25 p-3 md:grid-cols-[1fr_auto]"
+                        >
+                          <div>
+                            <p className="text-sm font-semibold text-violet-50">
+                              {toLabel(eventName)}
+                            </p>
+                            <p className="text-xs text-violet-100/65">
+                              Source: {meta?.name ?? defaultFile}
+                            </p>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <motion.button
+                              type="button"
+                              whileHover={hoverMotion}
+                              whileTap={tapMotion}
+                              className="rounded-lg border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-medium transition hover:bg-white/20"
+                              onClick={() => playEvent(eventName)}
+                            >
+                              Test
+                            </motion.button>
+                            <label className="cursor-pointer rounded-lg border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-medium transition hover:bg-white/20">
+                              Upload
+                              <input
+                                type="file"
+                                accept="audio/mp3,audio/mpeg,audio/wav,audio/ogg,audio/*"
+                                className="hidden"
+                                onChange={(event) => {
+                                  void handleCustomUpload(
+                                    eventName,
+                                    event.target.files?.[0] ?? null
+                                  );
+                                  event.currentTarget.value = "";
+                                }}
+                              />
+                            </label>
+                            <motion.button
+                              type="button"
+                              whileHover={hoverMotion}
+                              whileTap={tapMotion}
+                              className="rounded-lg border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-medium transition hover:bg-white/20"
+                              onClick={() => {
+                                setMapping(eventName, null);
+                                playClickSoft();
+                              }}
+                            >
+                              Clear
+                            </motion.button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </motion.section>
+              </div>
+            ) : null}
+
+            {activeTab === "desktop" ? (
+              <motion.section
+                variants={cardVariants}
+                className="glass-panel rounded-2xl p-5"
+              >
+                <div className="flex items-center gap-2">
+                  <MonitorCog size={16} className="text-violet-200/85" />
+                  <h2 className="text-base font-semibold text-white">Desktop</h2>
+                </div>
+                <p className="mt-1 text-xs text-violet-100/70">
+                  Manage icon behavior and visual background preferences.
+                </p>
+
+                <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
+                  <label className="flex items-center justify-between rounded-xl border border-white/10 bg-black/24 px-3 py-2 text-sm text-violet-100">
+                    <span>Snap icons to grid</span>
+                    <input
+                      type="checkbox"
+                      checked={desktop.snapToGrid}
+                      onChange={(event) => {
+                        setDesktopSnapToGrid(event.target.checked);
+                        playClickSoft();
+                      }}
+                    />
+                  </label>
+                  <label className="flex items-center justify-between rounded-xl border border-white/10 bg-black/24 px-3 py-2 text-sm text-violet-100">
+                    <span>Snap windows to edges</span>
+                    <input
+                      type="checkbox"
+                      checked={settings.snapEnabled}
+                      onChange={(event) => {
+                        setSnapEnabled(event.target.checked);
+                        playClickSoft();
+                      }}
+                    />
+                  </label>
+                  <div className="rounded-xl border border-white/10 bg-black/24 px-3 py-2">
+                    <p className="text-sm text-violet-100">Icon size</p>
+                    <div className="mt-2 flex items-center gap-1">
+                      {(["small", "medium", "large"] as const).map((size) => (
+                        <motion.button
+                          key={size}
+                          type="button"
+                          whileHover={hoverMotion}
+                          whileTap={tapMotion}
+                          className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
+                            desktop.iconSize === size
+                              ? "bg-violet-500/38 text-white"
+                              : "bg-white/7 text-violet-200 hover:bg-white/14"
+                          }`}
+                          onClick={() => {
+                            setDesktopIconSize(size);
+                            playClickSoft();
+                          }}
+                        >
+                          {size}
+                        </motion.button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <motion.button
+                  type="button"
+                  whileHover={hoverMotion}
+                  whileTap={tapMotion}
+                  className="mt-3 inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-sm font-medium transition hover:bg-white/20"
+                  onClick={() => {
+                    playClickSoft();
+                    if (window.confirm("Reset desktop icon positions to default layout?")) {
+                      resetDesktopIconLayout();
+                    }
+                  }}
+                >
+                  <RotateCcw size={15} />
+                  Reset icon layout
+                </motion.button>
+
+                <div className="mt-5">
+                  <h3 className="text-sm font-semibold text-violet-50">Wallpaper</h3>
+                  <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                    {WALLPAPERS.map((wallpaperEntry) => (
+                      <motion.button
+                        key={wallpaperEntry.id}
+                        type="button"
+                        whileHover={hoverMotion}
+                        whileTap={tapMotion}
+                        className={`overflow-hidden rounded-2xl border transition ${
+                          settings.wallpaper === wallpaperEntry.id
+                            ? "border-violet-300/45 shadow-[0_10px_25px_rgba(66,31,148,0.4)]"
+                            : "border-white/10 hover:border-white/20"
+                        }`}
                         onClick={() => {
-                          setMapping(eventName, null);
+                          setWallpaper(wallpaperEntry.id);
                           playClickSoft();
                         }}
                       >
-                        Clear
-                      </button>
-                    </div>
+                        <img
+                          src={wallpaperEntry.source}
+                          alt={wallpaperEntry.label}
+                          className="h-28 w-full object-cover"
+                        />
+                        <span className="block bg-black/30 px-2 py-1 text-xs text-violet-100">
+                          {wallpaperEntry.label}
+                        </span>
+                      </motion.button>
+                    ))}
                   </div>
-                );
-              })}
-            </div>
-          </section>
-        </div>
-      ) : null}
+                </div>
+              </motion.section>
+            ) : null}
 
-      {activeTab === "desktop" ? (
-        <section className="glass-panel h-full rounded-2xl p-5">
-          <div className="flex items-center gap-2">
-            <MonitorCog size={16} className="text-violet-200/85" />
-            <h2 className="text-base font-semibold text-white">Desktop</h2>
-          </div>
-          <p className="mt-1 text-xs text-violet-100/70">
-            Manage icon behavior and visual background preferences.
-          </p>
-
-          <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
-            <label className="flex items-center justify-between rounded-xl border border-white/10 bg-black/24 px-3 py-2 text-sm text-violet-100">
-              <span>Snap icons to grid</span>
-              <input
-                type="checkbox"
-                checked={desktop.snapToGrid}
-                onChange={(event) => {
-                  setDesktopSnapToGrid(event.target.checked);
-                  playClickSoft();
-                }}
-              />
-            </label>
-            <div className="rounded-xl border border-white/10 bg-black/24 px-3 py-2">
-              <p className="text-sm text-violet-100">Icon size</p>
-              <div className="mt-2 flex items-center gap-1">
-                {(["small", "medium", "large"] as const).map((size) => (
-                  <button
-                    key={size}
+            {activeTab === "theme" ? (
+              <motion.section
+                variants={cardVariants}
+                className="glass-panel rounded-2xl p-5"
+              >
+                <h2 className="text-base font-semibold text-white">Theme</h2>
+                <p className="mt-1 text-xs text-violet-100/70">
+                  Switch visual mode while keeping the PurpleOS accent style.
+                </p>
+                <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <motion.button
                     type="button"
-                    className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
-                      desktop.iconSize === size
-                        ? "bg-violet-500/38 text-white"
-                        : "bg-white/7 text-violet-200 hover:bg-white/14"
+                    whileHover={hoverMotion}
+                    whileTap={tapMotion}
+                    className={`rounded-2xl border p-4 text-left transition ${
+                      settings.themeMode === "purple"
+                        ? "border-violet-300/40 bg-violet-500/22"
+                        : "border-white/10 bg-black/25 hover:border-white/20"
                     }`}
                     onClick={() => {
-                      setDesktopIconSize(size);
+                      setThemeMode("purple");
                       playClickSoft();
                     }}
                   >
-                    {size}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            className="mt-3 inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-sm font-medium transition hover:bg-white/20"
-            onClick={() => {
-              playClickSoft();
-              if (window.confirm("Reset desktop icon positions to default layout?")) {
-                resetDesktopIconLayout();
-              }
-            }}
-          >
-            <RotateCcw size={15} />
-            Reset icon layout
-          </button>
-
-          <div className="mt-5">
-            <h3 className="text-sm font-semibold text-violet-50">Wallpaper</h3>
-            <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
-              {WALLPAPERS.map((wallpaperEntry) => (
-                <button
-                  key={wallpaperEntry.id}
-                  type="button"
-                  className={`overflow-hidden rounded-2xl border transition ${
-                    settings.wallpaper === wallpaperEntry.id
-                      ? "border-violet-300/45 shadow-[0_10px_25px_rgba(66,31,148,0.4)]"
-                      : "border-white/10 hover:border-white/20"
-                  }`}
-                  onClick={() => {
-                    setWallpaper(wallpaperEntry.id);
-                    playClickSoft();
-                  }}
-                >
-                  <img
-                    src={wallpaperEntry.source}
-                    alt={wallpaperEntry.label}
-                    className="h-24 w-full object-cover"
-                  />
-                  <span className="block bg-black/30 px-2 py-1 text-xs text-violet-100">
-                    {wallpaperEntry.label}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
-        </section>
-      ) : null}
-
-      {activeTab === "theme" ? (
-        <section className="glass-panel h-full rounded-2xl p-5">
-          <h2 className="text-base font-semibold text-white">Theme</h2>
-          <p className="mt-1 text-xs text-violet-100/70">
-            Switch visual mode while keeping the PurpleOS accent style.
-          </p>
-          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <button
-              type="button"
-              className={`rounded-2xl border p-4 text-left transition ${
-                settings.themeMode === "purple"
-                  ? "border-violet-300/40 bg-violet-500/22"
-                  : "border-white/10 bg-black/25 hover:border-white/20"
-              }`}
-              onClick={() => {
-                setThemeMode("purple");
-                playClickSoft();
-              }}
-            >
-              <p className="text-sm font-semibold text-violet-50">Purple</p>
-              <p className="mt-1 text-xs text-violet-200/70">
-                Rich purple gradients with glass surfaces.
-              </p>
-            </button>
-            <button
-              type="button"
-              className={`rounded-2xl border p-4 text-left transition ${
-                settings.themeMode === "black"
-                  ? "border-violet-300/40 bg-violet-500/16"
-                  : "border-white/10 bg-black/25 hover:border-white/20"
-              }`}
-              onClick={() => {
-                setThemeMode("black");
-                playClickSoft();
-              }}
-            >
-              <p className="text-sm font-semibold text-violet-50">Black</p>
-              <p className="mt-1 text-xs text-violet-200/70">
-                Near-true black backdrop with subtle purple highlights.
-              </p>
-            </button>
-          </div>
-        </section>
-      ) : null}
-
-      {activeTab === "about" ? (
-        <section className="glass-panel h-full rounded-2xl p-5">
-          <h2 className="text-base font-semibold text-white">PurpleOS Credits</h2>
-          <p className="mt-4 text-lg text-violet-50">{CREDITS_PRIMARY_LINE}</p>
-          <p className="mt-2 text-base text-violet-100">{CREDITS_SECONDARY_LINE}</p>
-
-          <div className="mt-4 rounded-2xl border border-white/10 bg-black/25 p-4">
-            <label className="flex items-center gap-2 text-sm text-violet-100/90">
-              <input
-                type="checkbox"
-                checked={settings.showNoAiLine}
-                onChange={(event) => {
-                  setShowNoAiLine(event.target.checked);
-                  playClickSoft();
-                }}
-              />
-              Show optional handcrafted line
-            </label>
-            {settings.showNoAiLine ? (
-              <p className="mt-3 text-sm text-violet-200/80">{CREDITS_OPTIONAL_LINE}</p>
+                    <p className="text-sm font-semibold text-violet-50">Purple</p>
+                    <p className="mt-1 text-xs text-violet-200/70">
+                      Rich purple gradients with glass surfaces.
+                    </p>
+                  </motion.button>
+                  <motion.button
+                    type="button"
+                    whileHover={hoverMotion}
+                    whileTap={tapMotion}
+                    className={`rounded-2xl border p-4 text-left transition ${
+                      settings.themeMode === "black"
+                        ? "border-violet-300/40 bg-violet-500/16"
+                        : "border-white/10 bg-black/25 hover:border-white/20"
+                    }`}
+                    onClick={() => {
+                      setThemeMode("black");
+                      playClickSoft();
+                    }}
+                  >
+                    <p className="text-sm font-semibold text-violet-50">Black</p>
+                    <p className="mt-1 text-xs text-violet-200/70">
+                      Near-true black backdrop with subtle purple highlights.
+                    </p>
+                  </motion.button>
+                </div>
+              </motion.section>
             ) : null}
-          </div>
-        </section>
-      ) : null}
+
+            {activeTab === "about" ? (
+              <motion.section
+                variants={cardVariants}
+                className="glass-panel rounded-2xl p-5"
+              >
+                <h2 className="text-base font-semibold text-white">PurpleOS Credits</h2>
+                <p className="mt-4 text-lg text-violet-50">{CREDITS_PRIMARY_LINE}</p>
+                <p className="mt-2 text-base text-violet-100">{CREDITS_SECONDARY_LINE}</p>
+              </motion.section>
+            ) : null}
+          </motion.div>
+        </AnimatePresence>
+      </div>
     </div>
   );
 }

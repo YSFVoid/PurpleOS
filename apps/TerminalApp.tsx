@@ -3,7 +3,6 @@
 import { useMemo, useState } from "react";
 
 import {
-  CREDITS_OPTIONAL_LINE,
   CREDITS_PRIMARY_LINE,
   CREDITS_SECONDARY_LINE,
 } from "@/lib/credits";
@@ -33,7 +32,6 @@ export default function TerminalApp() {
     }))
   );
 
-  const showNoAiLine = useOSStore((state) => state.settings.showNoAiLine);
   const pushNotification = useOSStore((state) => state.pushNotification);
   const raiseError = useOSStore((state) => state.raiseError);
   const playClickSoft = useOSStore((state) => state.playClickSoft);
@@ -60,9 +58,6 @@ export default function TerminalApp() {
     if (nextCommand === "about") {
       pushLine("output", CREDITS_PRIMARY_LINE);
       pushLine("output", CREDITS_SECONDARY_LINE);
-      if (showNoAiLine) {
-        pushLine("output", CREDITS_OPTIONAL_LINE);
-      }
       return;
     }
 

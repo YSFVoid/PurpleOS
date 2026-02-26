@@ -198,6 +198,123 @@ textarea {
   transition: box-shadow 0.2s ease, border-color 0.2s ease, background-color 0.2s ease;
 }
 
+.purple-window-shell .react-resizable-handle {
+  position: absolute;
+  z-index: 6;
+  background: transparent;
+}
+
+.purple-window-shell .react-resizable-handle::after {
+  content: "";
+  position: absolute;
+  border-radius: 999px;
+  background: linear-gradient(
+    180deg,
+    rgba(205, 176, 255, 0.42) 0%,
+    rgba(137, 93, 226, 0.35) 100%
+  );
+  box-shadow: 0 0 0 1px rgba(196, 166, 255, 0.14);
+  opacity: 0.28;
+  transition: opacity 0.16s ease;
+}
+
+.purple-window-shell:hover .react-resizable-handle::after {
+  opacity: 0.48;
+}
+
+.purple-window-shell .react-resizable-handle-n,
+.purple-window-shell .react-resizable-handle-s {
+  left: 14px;
+  right: 14px;
+  height: 8px;
+}
+
+.purple-window-shell .react-resizable-handle-n {
+  top: -4px;
+  cursor: n-resize;
+}
+
+.purple-window-shell .react-resizable-handle-s {
+  bottom: -4px;
+  cursor: s-resize;
+}
+
+.purple-window-shell .react-resizable-handle-n::after,
+.purple-window-shell .react-resizable-handle-s::after {
+  left: 0;
+  right: 0;
+  top: 3px;
+  height: 2px;
+}
+
+.purple-window-shell .react-resizable-handle-e,
+.purple-window-shell .react-resizable-handle-w {
+  top: 14px;
+  bottom: 14px;
+  width: 8px;
+}
+
+.purple-window-shell .react-resizable-handle-e {
+  right: -4px;
+  cursor: e-resize;
+}
+
+.purple-window-shell .react-resizable-handle-w {
+  left: -4px;
+  cursor: w-resize;
+}
+
+.purple-window-shell .react-resizable-handle-e::after,
+.purple-window-shell .react-resizable-handle-w::after {
+  top: 0;
+  bottom: 0;
+  left: 3px;
+  width: 2px;
+}
+
+.purple-window-shell .react-resizable-handle-ne,
+.purple-window-shell .react-resizable-handle-nw,
+.purple-window-shell .react-resizable-handle-se,
+.purple-window-shell .react-resizable-handle-sw {
+  width: 14px;
+  height: 14px;
+}
+
+.purple-window-shell .react-resizable-handle-ne {
+  top: -6px;
+  right: -6px;
+  cursor: ne-resize;
+}
+
+.purple-window-shell .react-resizable-handle-nw {
+  top: -6px;
+  left: -6px;
+  cursor: nw-resize;
+}
+
+.purple-window-shell .react-resizable-handle-se {
+  bottom: -6px;
+  right: -6px;
+  cursor: se-resize;
+}
+
+.purple-window-shell .react-resizable-handle-sw {
+  bottom: -6px;
+  left: -6px;
+  cursor: sw-resize;
+}
+
+.purple-window-shell .react-resizable-handle-ne::after,
+.purple-window-shell .react-resizable-handle-nw::after,
+.purple-window-shell .react-resizable-handle-se::after,
+.purple-window-shell .react-resizable-handle-sw::after {
+  width: 7px;
+  height: 7px;
+  left: 3px;
+  top: 3px;
+  border-radius: 999px;
+}
+
 .theme-black .glass-panel,
 .theme-black .start-menu-shell,
 .theme-black .system-panel-shell {

@@ -42,25 +42,31 @@ export default function WindowShell({ windowData, children }: WindowShellProps) 
   const applySnapWindow = useOSStore((state) => state.applySnapWindow);
   const playClickSoft = useOSStore((state) => state.playClickSoft);
   const reduceMotion = useOSStore((state) => state.settings.reduceMotion);
+  const snapEnabled = useOSStore((state) => state.settings.snapEnabled);
 
   const isFocused = focusedWindowId === windowData.id;
   const app = APP_REGISTRY[windowData.appId];
   const Icon = iconMap[windowData.appId];
-  const EDGE_THRESHOLD = 36;
+  const EDGE_THRESHOLD = 12;
 
   const detectSnapZone = (x: number, y: number, width: number) => {
     if (typeof window === "undefined") {
       return null;
     }
 
-    if (y <= EDGE_THRESHOLD) {
-      return "top" as const;
-    }
     if (x <= EDGE_THRESHOLD) {
       return "left" as const;
     }
     if (x + width >= window.innerWidth - EDGE_THRESHOLD) {
       return "right" as const;
+    }
+    if (y <= EDGE_THRESHOLD) {
+      const centerX = x + width / 2;
+      const centerBandStart = window.innerWidth * 0.2;
+      const centerBandEnd = window.innerWidth * 0.8;
+      if (centerX >= centerBandStart && centerX <= centerBandEnd) {
+        return "top" as const;
+      }
     }
     return null;
   };
@@ -73,24 +79,53 @@ export default function WindowShell({ windowData, children }: WindowShellProps) 
           : { width: windowData.w, height: windowData.h }
       }
       position={windowData.maximized ? { x: 0, y: 0 } : { x: windowData.x, y: windowData.y }}
-      minWidth={app.minSize.w}
-      minHeight={app.minSize.h}
-      bounds="parent"
+      minWidth={Math.max(420, app.minSize.w)}
+      minHeight={Math.max(280, app.minSize.h)}
+      bounds=".desktop-bounds"
       disableDragging={false}
-      enableResizing={!windowData.maximized}
-      dragHandleClassName="window-drag-handle"
-      cancel="button,input,textarea,select,a,[role='button'],.window-control,.window-content-interactive"
+      enableResizing={
+        windowData.maximized
+          ? false
+          : {
+              top: true,
+              right: true,
+              bottom: true,
+              left: true,
+              topRight: true,
+              bottomRight: true,
+              bottomLeft: true,
+              topLeft: true,
+            }
+      }
+      dragHandleClassName="window-titlebar"
+      cancel="button, a, input, textarea, select, [data-no-drag='true']"
+      className="purple-window-shell"
       style={{ zIndex: windowData.z }}
+      onPointerDown={() => focusWindow(windowData.id)}
       onMouseDown={() => focusWindow(windowData.id)}
-      onDragStart={() => {
+      onDragStart={(event) => {
         focusWindow(windowData.id);
         setSnapPreviewZone(null);
+        const liveWindow = useOSStore
+          .getState()
+          .windows.find((win) => win.id === windowData.id);
+        if (!liveWindow?.maximized) {
+          return;
+        }
+        if ("clientX" in event && "clientY" in event) {
+          restoreWindowForDrag(windowData.id, event.clientX, event.clientY);
+        }
       }}
       onDrag={(_, data) => {
         const liveWindow = useOSStore
           .getState()
           .windows.find((win) => win.id === windowData.id);
         if (liveWindow?.maximized) {
+          setSnapPreviewZone(null);
+          return;
+        }
+        if (!snapEnabled) {
+          setSnapPreviewZone(null);
           return;
         }
         const width = data.node?.offsetWidth ?? liveWindow?.w ?? windowData.w;
@@ -102,6 +137,13 @@ export default function WindowShell({ windowData, children }: WindowShellProps) 
           .getState()
           .windows.find((win) => win.id === windowData.id);
         if (!liveWindow || liveWindow.maximized) {
+          setSnapPreviewZone(null);
+          return;
+        }
+
+        if (!snapEnabled) {
+          setSnapPreviewZone(null);
+          updateWindowBounds(windowData.id, { x: data.x, y: data.y });
           return;
         }
 
@@ -136,8 +178,8 @@ export default function WindowShell({ windowData, children }: WindowShellProps) 
         }`}
       >
         <div
-          className="window-drag-handle flex h-10 items-center justify-between border-b border-white/10 bg-gradient-to-r from-white/11 to-white/4 px-3"
-          onMouseDown={(event) => {
+          className="window-titlebar flex h-10 items-center justify-between border-b border-white/10 bg-gradient-to-r from-white/11 to-white/4 px-3"
+          onPointerDown={(event) => {
             const target = event.target as Element;
             if (target.closest(".window-control")) {
               return;
@@ -196,7 +238,9 @@ export default function WindowShell({ windowData, children }: WindowShellProps) 
           </div>
         </div>
 
-        <div className="window-content-interactive h-full min-h-0 p-3">{children}</div>
+        <div className="window-content-interactive flex-1 min-h-0 overflow-auto p-3">
+          {children}
+        </div>
       </motion.div>
     </Rnd>
   );

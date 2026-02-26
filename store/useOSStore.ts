@@ -57,8 +57,8 @@ export type OSSettings = {
   accent: string;
   wallpaper: string;
   reduceMotion: boolean;
-  showNoAiLine: boolean;
   themeMode: "purple" | "black";
+  snapEnabled: boolean;
 };
 
 export type SidePanelTab = "notifications" | "quickSettings";
@@ -155,8 +155,8 @@ type OSStore = {
   setAccent: (accent: string) => void;
   setWallpaper: (wallpaper: string) => void;
   setReduceMotion: (reduceMotion: boolean) => void;
-  setShowNoAiLine: (enabled: boolean) => void;
   setThemeMode: (mode: "purple" | "black") => void;
+  setSnapEnabled: (enabled: boolean) => void;
   setDesktopSnapToGrid: (enabled: boolean) => void;
   setDesktopIconSize: (size: DesktopIconSize) => void;
   setDesktopIconPosition: (appId: AppId, position: DesktopIconPosition) => void;
@@ -188,8 +188,8 @@ const DEFAULT_SETTINGS: OSSettings = {
   accent: "#a855f7",
   wallpaper: "purple-nebula",
   reduceMotion: false,
-  showNoAiLine: false,
   themeMode: "purple",
+  snapEnabled: true,
 };
 
 const DEFAULT_DESKTOP: OSDesktopState = {
@@ -326,14 +326,14 @@ const sanitizeSettings = (input: unknown): OSSettings => {
       typeof source.reduceMotion === "boolean"
         ? source.reduceMotion
         : DEFAULT_SETTINGS.reduceMotion,
-    showNoAiLine:
-      typeof source.showNoAiLine === "boolean"
-        ? source.showNoAiLine
-        : DEFAULT_SETTINGS.showNoAiLine,
     themeMode:
       source.themeMode === "black" || source.themeMode === "purple"
         ? source.themeMode
         : DEFAULT_SETTINGS.themeMode,
+    snapEnabled:
+      typeof source.snapEnabled === "boolean"
+        ? source.snapEnabled
+        : DEFAULT_SETTINGS.snapEnabled,
   };
 };
 
@@ -1146,13 +1146,13 @@ export const useOSStore = create<OSStore>()(
         set((state) => ({ settings: { ...state.settings, wallpaper } })),
       setReduceMotion: (reduceMotion) =>
         set((state) => ({ settings: { ...state.settings, reduceMotion } })),
-      setShowNoAiLine: (enabled) =>
-        set((state) => ({
-          settings: { ...state.settings, showNoAiLine: enabled },
-        })),
       setThemeMode: (themeMode) =>
         set((state) => ({
           settings: { ...state.settings, themeMode },
+        })),
+      setSnapEnabled: (snapEnabled) =>
+        set((state) => ({
+          settings: { ...state.settings, snapEnabled },
         })),
       setDesktopSnapToGrid: (enabled) =>
         set((state) => ({

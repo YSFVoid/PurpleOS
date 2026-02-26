@@ -38,7 +38,7 @@ export default function WindowManager() {
 
   return (
     <div
-      className="pointer-events-none absolute inset-x-0 top-0 z-30"
+      className="desktop-bounds pointer-events-none absolute inset-x-0 top-0 z-30"
       style={{ bottom: `${TASKBAR_RESERVED_PX}px` }}
     >
       <AnimatePresence>
